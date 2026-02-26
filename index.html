@@ -1,0 +1,1739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AAIC Inspection Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0B1121; --sidebar: #0F172A; --main: #131B2E; --card: #1A2340;
+  --card-hover: #1E2A4A; --border: #1E293B; --border-light: #253354;
+  --accent: #3B82F6; --accent-glow: rgba(59,130,246,0.15);
+  --green: #34D399; --green-dim: #065F46; --green-glow: rgba(52,211,153,0.12);
+  --purple: #A78BFA; --purple-glow: rgba(167,139,250,0.12);
+  --orange: #FBBF24; --orange-glow: rgba(251,191,36,0.12);
+  --red: #F87171; --red-dim: rgba(248,113,113,0.15);
+  --blue: #60A5FA; --blue-dim: rgba(96,165,250,0.15);
+  --t1: #FFFFFF; --t2: #E2E8F0; --t3: #94A3B8; --t4: #64748B;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Outfit', system-ui, sans-serif; background: var(--bg); color: var(--t1); font-size: 13px; display: flex; height: 100vh; overflow: hidden; -webkit-font-smoothing: antialiased; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ─── SIDEBAR ─── */
+.side { width: 220px; background: var(--sidebar); display: flex; flex-direction: column; border-right: 1px solid var(--border); flex-shrink: 0; }
+.side-logo { padding: 22px 18px 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+.side-logo-icon { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #3B82F6, #2563EB); display: flex; align-items: center; justify-content: center; font-size: 17px; box-shadow: 0 2px 10px rgba(59,130,246,0.3); flex-shrink: 0; }
+.side-logo-text { font-size: 14px; font-weight: 700; color: var(--t1); line-height: 1.2; }
+.side-logo-sub { font-size: 10px; color: var(--t3); font-weight: 400; }
+.side-nav { padding: 12px 0; flex: 1; }
+.side-nav a { display: flex; align-items: center; gap: 10px; padding: 10px 18px; color: var(--t3); font-size: 13px; font-weight: 500; text-decoration: none; cursor: pointer; transition: all 0.15s; border-left: 3px solid transparent; }
+.side-nav a:hover { background: rgba(255,255,255,0.03); color: var(--t2); }
+.side-nav a.active { background: var(--accent-glow); color: var(--accent); border-left-color: var(--accent); }
+.side-section { padding: 16px 18px 8px; font-size: 10px; font-weight: 600; color: var(--t4); text-transform: uppercase; letter-spacing: 0.08em; }
+.side-user { padding: 14px 18px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.side-user img { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); }
+.side-user-name { font-size: 12px; color: var(--t2); font-weight: 500; }
+.side-user-email { font-size: 10px; color: var(--t4); }
+.side-connect-btn { margin: 12px 18px; padding: 10px; border-radius: 8px; background: var(--accent); color: white; border: none; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; transition: all 0.2s; }
+.side-connect-btn:hover { background: #2563EB; }
+
+/* ─── MAIN ─── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.topbar { padding: 10px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); background: var(--sidebar); flex-shrink: 0; }
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.month-btn { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--t3); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.month-btn:hover { border-color: var(--t4); color: var(--t1); }
+.month-label { font-size: 16px; font-weight: 700; color: var(--t1); min-width: 160px; text-align: center; }
+.topbar-right { display: flex; gap: 8px; }
+.btn { padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; font-family: inherit; border: none; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+.btn-ghost { background: var(--card); border: 1px solid var(--border); color: var(--t3); }
+.btn-ghost:hover { border-color: var(--t4); color: var(--t2); }
+.btn-accent { background: var(--accent); color: white; }
+.btn-accent:hover { background: #2563EB; }
+.btn-red { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+
+.content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.sticky-top { flex-shrink: 0; padding: 14px 24px 0; background: var(--bg); }
+.scroll-area { flex: 1; overflow-y: auto; padding: 16px 28px 40px; }
+
+/* ─── MOBILE RESPONSIVE ─── */
+@media (max-width: 900px) {
+  .sticky-top { flex-shrink: 1; overflow-y: visible; position: static; }
+  .content { overflow-y: auto; display: block; }
+  .scroll-area { overflow-y: visible; padding: 12px 14px 40px; }
+  .sticky-top { padding: 12px 14px 0; }
+  .topbar { padding: 10px 14px; }
+  .month-label { font-size: 15px; min-width: auto; }
+  .stats { grid-template-columns: 1fr; gap: 10px; margin-bottom: 16px; }
+  .stat-card { padding: 14px; }
+  .stat-grid { gap: 10px; }
+  .stat-item-val { font-size: 18px; }
+  .insp-card { grid-template-columns: 44px 1fr; gap: 8px; padding: 14px; }
+  .insp-card > *:nth-child(n+3) { grid-column: 1 / -1; }
+  .detail-row { grid-template-columns: 1fr 1fr; padding: 12px; }
+  .filters { gap: 6px; }
+  .filter-input { width: 100%; }
+}
+@media (max-width: 600px) {
+  .stat-card { padding: 12px; }
+  .stat-header { margin-bottom: 10px; padding-bottom: 8px; }
+  .stat-item-val { font-size: 16px; }
+  .btn { padding: 6px 10px; font-size: 11px; }
+}
+
+/* ─── STATUS ─── */
+.status-bar { padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 12px; display: none; align-items: center; gap: 8px; }
+.status-loading { background: var(--accent-glow); border: 1px solid rgba(59,130,246,0.2); color: var(--accent); display: flex; }
+.status-error { background: var(--red-dim); border: 1px solid rgba(248,113,113,0.2); color: var(--red); display: flex; }
+.spinner { width: 14px; height: 14px; border: 2px solid var(--accent); border-top-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── STATS ─── */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.stat-card { background: var(--card); border-radius: 10px; padding: 12px 16px; border: 1px solid var(--border); transition: all 0.2s; }
+.stat-card:hover { border-color: var(--border-light); }
+.stat-header { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.stat-dot { width: 8px; height: 8px; border-radius: 50%; }
+.stat-title { font-size: 12px; font-weight: 700; color: var(--t2); }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-item-label { font-size: 9px; font-weight: 500; color: var(--t4); text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-item-val { font-size: 17px; font-weight: 800; font-family: 'JetBrains Mono', monospace; letter-spacing: -0.03em; margin-top: 1px; }
+
+/* ─── FILTERS ─── */
+.filters { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+.filter-input { padding: 8px 12px 8px 34px; border-radius: 8px; border: 1px solid var(--border); background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%23475569' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") 10px center no-repeat; font-size: 12px; font-family: inherit; color: var(--t2); outline: none; width: 200px; }
+.filter-input:focus { border-color: var(--accent); }
+.filter-sel { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); font-size: 12px; font-family: inherit; color: var(--t2); cursor: pointer; outline: none; -webkit-appearance: none; }
+.filter-sel:focus { border-color: var(--accent); }
+
+/* ─── INSPECTION CARDS ─── */
+.insp-list { display: flex; flex-direction: column; gap: 6px; }
+.insp-card { background: var(--card); padding: 12px 16px; border: 1px solid var(--border); display: grid; grid-template-columns: 54px 1.4fr 1fr 0.6fr 0.6fr auto auto auto auto 36px; align-items: center; gap: 10px; transition: all 0.15s; }
+.insp-card.unpaid-highlight { border-left: 4px solid #EF4444; background: linear-gradient(90deg, rgba(239,68,68,0.15) 0%, rgba(239,68,68,0.06) 30%, var(--card) 60%); animation: slowRedGlow 4s ease-in-out infinite; }
+@keyframes slowRedGlow { 0%,100% { box-shadow: inset 0 0 20px rgba(239,68,68,0.05), 0 0 4px rgba(239,68,68,0.05); border-left-color: rgba(239,68,68,0.4); } 50% { box-shadow: inset 0 0 25px rgba(239,68,68,0.15), 0 0 12px rgba(239,68,68,0.2); border-left-color: #EF4444; } }
+.insp-card.unpaid-highlight .date-block { background: rgba(239,68,68,0.2); border-color: rgba(239,68,68,0.4); }
+.insp-card.unpaid-highlight .date-day { color: #EF4444; }
+.insp-card.unpaid-highlight .date-mon, .insp-card.unpaid-highlight .date-weekday { color: #FCA5A5; }
+
+@keyframes flashRed { 0%, 100% { color: #EF4444; } 50% { color: #ffffff; } }
+.card-sel.pmt-unpaid { color: #EF4444; animation: flashRed 4s ease-in-out infinite; }
+.card-sel.pmt-paid { color: #34D399; }
+.card-sel.pmt-unpaid option, .card-sel.pmt-paid option { color: #1a1a2e; }
+.card-sel option.opt-unpaid { color: #EF4444; font-weight: 600; }
+.card-sel option.opt-paid { color: #059669; font-weight: 600; }
+
+/* Unpaid tooltip & list */
+.rev-outstanding-wrap { position: relative; }
+.unpaid-tooltip { display:none; position:fixed; z-index:1000; min-width:380px; max-width:450px; max-height:60vh; overflow-y:auto; background:var(--card); border:1px solid var(--border-light); border-radius:10px; padding:14px 16px; box-shadow:0 12px 32px rgba(0,0,0,0.5); pointer-events:none; }
+.unpaid-tooltip.show { display:block; }
+.unpaid-tooltip-header { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--orange); margin-bottom:8px; border-bottom:1px solid var(--border); padding-bottom:6px; }
+.unpaid-tooltip-group { margin-bottom:8px; }
+.unpaid-tooltip-group-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:4px; }
+.unpaid-tooltip-group-label.brett { color:#EF4444; }
+.unpaid-tooltip-group-label.kerry { color:#60A5FA; }
+.unpaid-tooltip-row { display:grid; grid-template-columns:60px 1fr auto; gap:6px; font-size:12px; padding:2px 0; color:var(--t2); }
+.unpaid-tooltip-row .utp-date { color:var(--t3); }
+.unpaid-tooltip-row .utp-addr { color:var(--t1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.unpaid-tooltip-row .utp-amt { color:var(--orange); font-weight:600; text-align:right; }
+
+.unpaid-list-panel { background:var(--card); border:1px solid var(--border-light); border-radius:10px; padding:16px 20px; margin:0 0 8px 0; animation:fadeIn 0.2s; max-height:50vh; overflow-y:auto; }
+.unpaid-list-panel .ulp-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.unpaid-list-panel .ulp-title { font-size:14px; font-weight:700; color:var(--orange); }
+.unpaid-list-panel .ulp-close { background:none; border:none; color:var(--t3); font-size:18px; cursor:pointer; padding:0 4px; }
+.unpaid-list-panel .ulp-close:hover { color:var(--t1); }
+.unpaid-list-panel table { width:100%; border-collapse:collapse; }
+.unpaid-list-panel th { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--t3); text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
+.unpaid-list-panel td { font-size:13px; padding:8px; border-bottom:1px solid var(--border); color:var(--t1); }
+.unpaid-list-panel tr:last-child td { border-bottom:none; }
+.unpaid-list-panel .ulp-inspector { font-weight:600; }
+.unpaid-list-panel .ulp-brett { color:#EF4444; }
+.unpaid-list-panel .ulp-kerry { color:#60A5FA; }
+.unpaid-list-panel .ulp-amt { color:var(--orange); font-weight:600; }
+.unpaid-list-panel .ulp-status { font-size:11px; }
+.insp-card:hover { border-color: var(--border-light); background: var(--card-hover); }
+
+.date-block { text-align: center; }
+.date-mon { font-size: 12px; color: var(--t3); text-transform: uppercase; font-weight: 700; letter-spacing: 0.06em; }
+.date-day { font-size: 28px; font-weight: 800; color: var(--t1); line-height: 1; }
+.date-weekday { font-size: 11px; color: var(--t4); font-weight: 500; }
+
+.insp-addr { font-weight: 700; font-size: 16px; color: var(--t1); }
+.insp-city { font-size: 13px; color: var(--t4); margin-top: 2px; }
+.insp-client { font-size: 15px; color: var(--t2); }
+.insp-agent { font-size: 12px; color: var(--t4); margin-top: 2px; }
+.insp-fee { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 18px; color: var(--green); }
+.insp-fee-label { font-size: 10px; color: var(--t3); text-transform: uppercase; }
+.insp-comm { font-family: 'JetBrains Mono', monospace; font-size: 16px; color: var(--purple); }
+
+.tag { padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+.tag-brett { background: var(--red-dim); color: var(--red); }
+.tag-kerry { background: var(--blue-dim); color: var(--blue); }
+.tag-paid { background: var(--green-glow); color: var(--green); }
+.tag-unpaid { background: var(--orange-glow); color: var(--orange); }
+.tag-venmo { background: var(--purple-glow); color: var(--purple); }
+.tag-cash { background: var(--orange-glow); color: var(--orange); }
+.tag-zelle { background: var(--purple-glow); color: var(--purple); }
+.tag-submitted { background: rgba(251,191,36,0.08); color: #FBBF24; }
+.tag-awaiting { background: rgba(251,191,36,0.08); color: #FBBF24; }
+.tag-no { background: var(--red-dim); color: var(--red); }
+.tag-paid-sq { background: rgba(52,211,153,0.08); color: #34D399; }
+
+/* Editable inline */
+.ed { cursor: text; padding: 4px 6px; border-radius: 6px; border: 1px solid transparent; transition: all 0.15s; }
+.ed:hover { background: rgba(255,255,255,0.05); border-color: var(--border); }
+.ed-input { width: 100%; border: none; outline: none; padding: 4px 6px; border-radius: 6px; background: var(--accent-glow); font-family: inherit; font-size: inherit; color: var(--t1); border: 1px solid var(--accent); }
+.ph { color: var(--t3); font-size: 11px; }
+
+.cell-sel { padding: 4px 6px; border: 1px solid transparent; border-radius: 6px; background: transparent; font-family: inherit; font-size: 12px; color: var(--t2); cursor: pointer; outline: none; -webkit-appearance: none; }
+.cell-sel:hover { background: rgba(255,255,255,0.05); border-color: var(--border); }
+.cell-sel:focus { background: var(--accent-glow); border-color: var(--accent); }
+.cell-sel option { background: var(--card); color: var(--t1); }
+
+.del-btn { opacity: 0; width: 28px; height: 28px; border-radius: 8px; border: none; background: var(--red-dim); color: var(--red); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.insp-card:hover .del-btn { opacity: 1; }
+.card-sel { padding: 8px 14px; border-radius: 10px; border: 2px solid var(--border); background: var(--sidebar); font-family: inherit; font-size: 13px; font-weight: 700; color: var(--t1); cursor: pointer; outline: none; -webkit-appearance: none; transition: all 0.15s; min-width: 90px; text-align: center; }
+.card-sel:hover { border-color: var(--border-light); background: rgba(255,255,255,0.06); }
+.card-sel:focus { border-color: var(--accent); background: var(--accent-glow); }
+.card-sel option { background: var(--card); color: var(--t1); }
+.card-sel-label { font-size: 10px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; font-weight: 700; text-align: center; }
+
+/* Required field - needs attention when blank/default */
+@keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(251,191,36,0); } 50% { box-shadow: 0 0 8px 2px rgba(251,191,36,0.3); } }
+.card-sel.needs-input { border-color: #FBBF24; background: rgba(251,191,36,0.08); animation: pulseGlow 3s ease-in-out infinite; }
+.card-sel.needs-input + .card-sel-label, .card-sel-label.needs-input { color: #FBBF24; }
+
+.add-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border-radius: 12px; border: 1.5px dashed var(--border); color: var(--t4); cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; margin-top: 8px; }
+.add-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+
+/* Multi-select filters */
+.multi-filter { position:relative; }
+.mf-display { display:flex; align-items:center; gap:6px; padding:8px 12px; border-radius:10px; border:1px solid var(--border); background:var(--sidebar); cursor:pointer; font-size:12px; font-weight:600; color:var(--t1); min-width:120px; transition:all 0.15s; white-space:nowrap; }
+.mf-display:hover { border-color:var(--border-light); }
+.mf-display.active { border-color:var(--accent); background:var(--accent-glow); }
+.mf-arrow { color:var(--t3); font-size:10px; margin-left:auto; }
+.mf-label { overflow:hidden; text-overflow:ellipsis; }
+.mf-dropdown { display:none; position:absolute; top:calc(100% + 4px); left:0; min-width:200px; max-height:280px; overflow-y:auto; background:var(--card); border:1px solid var(--border-light); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.4); z-index:200; padding:6px 0; }
+.mf-dropdown.open { display:block; }
+.mf-opt { display:flex; align-items:center; gap:8px; padding:8px 14px; cursor:pointer; font-size:12px; color:var(--t2); transition:background 0.1s; }
+.mf-opt:hover { background:rgba(255,255,255,0.05); }
+.mf-opt.selected { color:var(--t1); font-weight:600; }
+.mf-opt .mf-check { width:16px; height:16px; border-radius:4px; border:1.5px solid var(--border-light); display:flex; align-items:center; justify-content:center; font-size:10px; flex-shrink:0; transition:all 0.15s; }
+.mf-opt.selected .mf-check { background:var(--accent); border-color:var(--accent); color:#fff; }
+.mf-opt-all { border-bottom:1px solid var(--border); margin-bottom:4px; padding-bottom:10px; font-weight:700; color:var(--t1); }
+
+.empty-state { text-align: center; padding: 60px 20px; color: var(--t4); }
+.empty-state-icon { font-size: 40px; margin-bottom: 14px; }
+.empty-state h3 { font-size: 16px; color: var(--t3); font-weight: 600; margin-bottom: 6px; }
+
+/* Detail panel - collapsed by default, expand on hover (2s) or click */
+.detail-row { background: var(--sidebar); border-radius: 0 0 12px 12px; margin-top: -1px; padding: 0 18px; border: 1px solid var(--border); border-top: 1px dashed var(--border); display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; max-height: 0; overflow: hidden; transition: max-height 0.15s ease 0s, padding 0.15s ease 0s; }
+.detail-row.expanded { max-height: 500px; padding: 14px 18px; transition: max-height 0.3s ease 0s, padding 0.3s ease 0s; }
+.insp-wrap:not(.no-hover):hover .detail-row:not(.expanded) { max-height: 500px; padding: 14px 18px; transition-delay: 1.5s; }
+.insp-wrap { transition: all 0.15s; cursor: pointer; }
+.insp-wrap .insp-card { border-radius: 12px; transition: border-radius 0.15s 0s; }
+.insp-wrap:has(.detail-row.expanded) .insp-card { border-radius: 12px 12px 0 0; }
+.insp-wrap:not(.no-hover):hover .insp-card { border-radius: 12px 12px 0 0; transition-delay: 1.5s; }
+.detail-field label { font-size: 10px; color: var(--t3); text-transform: uppercase; letter-spacing: 0.04em; display: block; margin-bottom: 3px; font-weight: 600; }
+.detail-field .ed, .detail-field .cell-sel { font-size: 13px; color: var(--t1); }
+.detail-notes { grid-column: 1 / -1; }
+.detail-notes textarea { width: 100%; min-height: 50px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--t1); font-family: inherit; font-size: 13px; resize: vertical; outline: none; transition: border-color 0.15s; }
+.detail-notes textarea:focus { border-color: var(--accent); }
+.detail-notes textarea::placeholder { color: var(--t4); }
+
+/* ─── ALERT BANNERS ─── */
+.alert-banner { display:none; padding:10px 16px; border-radius:10px; margin-bottom:8px; font-size:13px; font-weight:600; cursor:pointer; position:relative; }
+.alert-banner.alert-red { background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:#F87171; animation:slowRedGlow 4s ease-in-out infinite; }
+.alert-banner.alert-orange { background:rgba(251,191,36,0.1); border:1px solid rgba(251,191,36,0.3); color:#FBBF24; animation:slowOrangeGlow 4s ease-in-out infinite; }
+@keyframes slowOrangeGlow { 0%,100% { box-shadow:0 0 0 0 rgba(251,191,36,0); border-color:rgba(251,191,36,0.3); } 50% { box-shadow:0 0 10px 2px rgba(251,191,36,0.12); border-color:rgba(251,191,36,0.6); } }
+.alert-banner .alert-icon { margin-right:8px; }
+.alert-tooltip { display:none; position:absolute; top:calc(100% + 6px); left:0; min-width:420px; max-width:500px; max-height:50vh; overflow-y:auto; background:var(--card); border:1px solid var(--border-light); border-radius:10px; padding:14px 16px; box-shadow:0 12px 32px rgba(0,0,0,0.5); z-index:300; cursor:default; }
+.alert-banner:hover .alert-tooltip { display:block; }
+.alert-tooltip .at-header { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px; border-bottom:1px solid var(--border); padding-bottom:6px; }
+.alert-tooltip .at-header.red { color:#EF4444; }
+.alert-tooltip .at-header.orange { color:#FBBF24; }
+.alert-tooltip .at-row { display:grid; grid-template-columns:70px 1fr auto; gap:8px; font-size:12px; padding:6px 4px; border-bottom:1px solid rgba(255,255,255,0.04); align-items:center; border-radius:6px; transition:background 0.15s; }
+.alert-tooltip .at-row:hover { background:rgba(255,255,255,0.06); }
+.alert-tooltip .at-inspector { font-weight:700; }
+.alert-tooltip .at-inspector.brett { color:#EF4444; }
+.alert-tooltip .at-inspector.kerry { color:#60A5FA; }
+.alert-tooltip .at-addr { color:var(--t1); }
+.alert-tooltip .at-detail { font-size:11px; font-weight:600; }
+.alert-tooltip .at-detail.red { color:#EF4444; }
+.alert-tooltip .at-detail.orange { color:#FBBF24; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.anim { animation: fadeIn 0.2s ease both; }
+
+/* ─── METRICS ─── */
+.m-section { background: var(--card); border-radius: 14px; border: 1px solid var(--border); margin-bottom: 24px; overflow: hidden; }
+.m-section-header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.m-section-header h3 { font-size: 16px; font-weight: 700; color: var(--t1); }
+.m-section-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* Summary cards row */
+.m-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:16px; padding:20px 24px; border-bottom:1px solid var(--border); }
+.m-summary-card { background:rgba(255,255,255,0.03); border-radius:10px; padding:14px 16px; text-align:center; }
+.m-summary-label { font-size:10px; text-transform:uppercase; letter-spacing:0.8px; color:var(--t3); font-weight:700; margin-bottom:6px; }
+.m-summary-val { font-size:22px; font-weight:800; font-family:'JetBrains Mono',monospace; }
+
+.m-tbl { width: 100%; border-collapse: collapse; }
+.m-tbl th { padding: 12px 16px; text-align: right; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--t3); font-weight: 700; background: rgba(0,0,0,0.2); border-bottom: 2px solid var(--border); }
+.m-tbl th:first-child { text-align: left; }
+.m-tbl td { padding: 11px 16px; text-align: right; font-size: 13px; color: var(--t2); border-bottom: 1px solid rgba(255,255,255,0.04); font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+.m-tbl td:first-child { text-align: left; font-family: 'Outfit', sans-serif; font-weight: 600; color: var(--t2); }
+.m-tbl tr:hover td { background: rgba(255,255,255,0.03); }
+.m-tbl .has-data td { color: var(--t1); }
+.m-tbl .no-data td { color: var(--t4); font-size:12px; }
+.m-tbl .q-row td { background: rgba(59,130,246,0.08); font-weight: 800; border-top: 2px solid rgba(59,130,246,0.3); border-bottom: 2px solid rgba(59,130,246,0.15); color:var(--t1); }
+.m-tbl .q-row td:first-child { color: var(--accent); font-family: 'Outfit', sans-serif; font-size:14px; }
+.m-tbl .yr-row td { background: rgba(52,211,153,0.1); font-weight: 800; border-top: 3px solid var(--green); font-size: 15px; color:var(--t1); }
+.m-tbl .yr-row td:first-child { color: var(--green); font-family: 'Outfit', sans-serif; font-size: 15px; }
+.m-tbl .gap-row td { padding: 8px; border: none; background: transparent; }
+.m-money-green { color: var(--green) !important; }
+.m-money-purple { color: var(--purple) !important; }
+.m-money-orange { color: var(--orange) !important; }
+.m-money-red { color: var(--red) !important; }
+.m-check { cursor: pointer; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; border: none; font-family: inherit; transition:all 0.15s; }
+.m-check:hover { transform:scale(1.05); }
+.m-check-yes { background: var(--green-glow); color: var(--green); }
+.m-check-no { background: var(--orange-glow); color: var(--orange); }
+
+/* Zero value dimming */
+.m-zero { color: var(--t4) !important; opacity:0.4; }
+.m-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+/* ─── HAMBURGER MENU ─── */
+.hamburger { display: none; width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--t2); cursor: pointer; font-size: 20px; align-items: center; justify-content: center; flex-shrink: 0; }
+.side-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 998; }
+.side-overlay.open { display: block; }
+
+/* ─── MOBILE RESPONSIVE ─── */
+@media (max-width: 768px) {
+  .hamburger { display: flex; }
+  .side { position: fixed; left: -280px; top: 0; bottom: 0; width: 260px; z-index: 999; transition: left 0.25s ease; box-shadow: none; }
+  .side.open { left: 0; box-shadow: 4px 0 20px rgba(0,0,0,0.4); }
+
+  .topbar { padding: 12px 14px; }
+  .topbar-left { gap: 8px; }
+  .month-label { font-size: 15px; min-width: auto; }
+  .topbar-right { gap: 6px; }
+  .btn { padding: 7px 10px; font-size: 11px; }
+
+  .sticky-top { padding: 12px 14px 0; }
+  .scroll-area { padding: 12px 14px 30px; }
+
+  .stats { grid-template-columns: 1fr; gap: 10px; margin-bottom: 16px; }
+  .stat-card { padding: 14px; }
+  .stat-grid { gap: 10px; }
+  .stat-item-val { font-size: 18px; }
+
+  .filters { gap: 6px; }
+  .filter-input { width: 100%; }
+  .mf-display { min-width: auto; font-size: 11px; padding: 7px 10px; }
+
+  .insp-card { grid-template-columns: 44px 1fr; gap: 8px; padding: 14px; }
+  .insp-card > *:nth-child(n+3) { grid-column: 1 / -1; }
+  .insp-card > div:has(.insp-fee) { display: flex; gap: 20px; align-items: center; }
+  .insp-card > div:has(.card-sel) { display: flex; flex-direction: column; align-items: stretch; }
+
+  .insp-addr { font-size: 14px; }
+  .insp-fee { font-size: 16px; }
+  .insp-comm { font-size: 14px; }
+  .card-sel { min-width: 80px; font-size: 12px; padding: 6px 10px; }
+  .card-sel-label { font-size: 9px; }
+  .del-btn { opacity: 1; }
+
+  .detail-row { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; padding: 12px 14px; }
+  .detail-notes textarea { min-height: 40px; font-size: 12px; }
+
+  /* Metrics page mobile */
+  .m-tbl { font-size: 11px; display: block; overflow-x: auto; }
+  .m-tbl th, .m-tbl td { padding: 8px 10px; font-size: 11px; white-space: nowrap; }
+  .m-summary { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 14px; }
+  .m-summary-val { font-size: 18px; }
+  .m-section-header { padding: 14px 16px; }
+  .m-section-header h3 { font-size: 14px; }
+
+  .unpaid-tooltip { min-width: 280px; max-width: 90vw; }
+  .unpaid-list-panel { max-height: 40vh; }
+}
+
+@media (max-width: 400px) {
+  .stats { gap: 8px; }
+  .stat-card { padding: 12px; }
+  .stat-item-val { font-size: 16px; }
+  .stat-header { margin-bottom: 10px; padding-bottom: 8px; }
+  .month-label { font-size: 14px; }
+  .insp-card { padding: 12px; }
+  .m-summary { grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div class="side-overlay" id="sideOverlay" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
+<aside class="side" id="sidebar">
+  <div class="side-logo">
+    <div class="side-logo-icon">🏠</div>
+    <div>
+      <div class="side-logo-text">AAIC</div>
+      <div class="side-logo-sub">Inspection Tracker</div>
+    </div>
+  </div>
+  <nav class="side-nav">
+    <a class="active" onclick="switchTab('inspections')" id="navInspections" style="cursor:pointer">📋 Inspections</a>
+    <a onclick="switchTab('metrics')" id="navMetrics" style="cursor:pointer">📊 Metrics</a>
+    <div class="side-section">Calendar</div>
+    <a id="sideSync" onclick="isSignedIn?fetchCalendarEvents():handleSignIn()" style="cursor:pointer">📅 <span id="syncLabel">Connect Calendar</span></a>
+    <a id="sideRefresh" onclick="refreshData()" style="display:none;cursor:pointer">🔄 Refresh Data</a>
+    <a id="sideSignOut" onclick="handleSignOut()" style="display:none;cursor:pointer">🚪 Sign Out</a>
+  </nav>
+  <div id="sheetIdDisplay"></div>
+  <div style="flex:1"></div>
+  <div style="padding:0 12px 16px;">
+    <a onclick="exportCSV()" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;color:var(--t3);font-size:13px;transition:all 0.15s;text-decoration:none;" onmouseover="this.style.background='rgba(255,255,255,0.05)';this.style.color='var(--t1)'" onmouseout="this.style.background='';this.style.color='var(--t3)'">📥 Export CSV</a>
+  </div>
+  <div id="sideUser" class="side-user" style="display:none">
+    <img id="userPhoto" src="" alt="">
+    <div>
+      <div class="side-user-name" id="userName"></div>
+      <div class="side-user-email">Connected</div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main" id="inspectionsPage">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="hamburger" onclick="toggleSidebar()">☰</button>
+      <button class="month-btn" onclick="changeMonth(-1)">‹</button>
+      <span class="month-label" id="monthLabel"></span>
+      <button class="month-btn" onclick="changeMonth(1)">›</button>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost" onclick="if(isSignedIn)fetchCalendarEvents();else handleSignIn();">🔄 Sync</button>
+      <button class="btn btn-accent" onclick="addInspection()">+ New Inspection</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- STICKY TOP: Status + Stats + Filters -->
+    <div class="sticky-top">
+      <div class="status-bar" id="statusLoading"><div class="spinner"></div> <span id="loadingText">Loading...</span></div>
+      <div class="status-bar" id="statusError">⚠️ <span id="errorText"></span> <button onclick="this.parentElement.style.display='none'" style="margin-left:auto;background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;">×</button></div>
+
+      <!-- Alert Banners -->
+      <div class="alert-banner alert-red" id="radonAlert">
+        <span class="alert-icon">☢️</span> <span id="radonAlertText"></span>
+        <div class="alert-tooltip" id="radonAlertTooltip"></div>
+      </div>
+      <div class="alert-banner alert-orange" id="unpaidAlert">
+        <span class="alert-icon">💰</span> <span id="unpaidAlertText"></span>
+        <div class="alert-tooltip" id="unpaidAlertTooltip"></div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-header"><div class="stat-dot" style="background:var(--accent)"></div><div class="stat-title">Monthly Overview</div></div>
+          <div class="stat-grid">
+            <div><div class="stat-item-label">Inspections</div><div class="stat-item-val" id="sCount" style="color:var(--accent)">0</div></div>
+            <div><div class="stat-item-label">Revenue</div><div class="stat-item-val" id="sRevenue" style="color:var(--green)">$0</div></div>
+            <div class="rev-outstanding-wrap" onmouseenter="showUnpaidTooltip(event)" onmouseleave="hideUnpaidTooltip()" onclick="toggleUnpaidList()"><div class="stat-item-label" style="cursor:pointer">Revenue Outstanding ⓘ</div><div class="stat-item-val" id="sUnpaid" style="color:var(--orange);cursor:pointer">$0</div><div class="unpaid-tooltip" id="unpaidTooltip"></div></div>
+            <div><div class="stat-item-label">Total Comm.</div><div class="stat-item-val" id="sTotalComm" style="color:var(--purple)">$0</div></div>
+          </div>
+        </div>
+        <div class="stat-card" style="border-top: 3px solid var(--red);">
+          <div class="stat-header"><div class="stat-dot" style="background:#EF4444"></div><div class="stat-title">Brett</div>
+            <label style="margin-left:auto;display:flex;align-items:center;gap:4px;font-size:10px;color:var(--t4);cursor:pointer;user-select:none;" title="Mark all Brett's commissions as Paid for this month">
+              <input type="checkbox" id="payAllBrett" onchange="togglePayAll('Brett', this.checked)"> Pay All
+            </label>
+          </div>
+          <div class="stat-grid">
+            <div><div class="stat-item-label">Inspections</div><div class="stat-item-val" id="brettCount" style="color:var(--t1)">0</div></div>
+            <div><div class="stat-item-label">Revenue</div><div class="stat-item-val" id="brettIncome" style="color:var(--green)">$0</div></div>
+            <div><div class="stat-item-label">Commission</div><div class="stat-item-val" id="brettComm" style="color:var(--purple)">$0</div></div>
+            <div><div class="stat-item-label">Unpaid</div><div class="stat-item-val" id="brettUnpaid" style="color:var(--orange)">$0</div></div>
+          </div>
+        </div>
+        <div class="stat-card" style="border-top: 3px solid var(--blue);">
+          <div class="stat-header"><div class="stat-dot" style="background:#3B82F6"></div><div class="stat-title">Kerry</div>
+            <label style="margin-left:auto;display:flex;align-items:center;gap:4px;font-size:10px;color:var(--t4);cursor:pointer;user-select:none;" title="Mark all Kerry's commissions as Paid for this month">
+              <input type="checkbox" id="payAllKerry" onchange="togglePayAll('Kerry', this.checked)"> Pay All
+            </label>
+          </div>
+          <div class="stat-grid">
+            <div><div class="stat-item-label">Inspections</div><div class="stat-item-val" id="kerryCount" style="color:var(--t1)">0</div></div>
+            <div><div class="stat-item-label">Revenue</div><div class="stat-item-val" id="kerryIncome" style="color:var(--green)">$0</div></div>
+            <div><div class="stat-item-label">Commission</div><div class="stat-item-val" id="kerryComm" style="color:var(--purple)">$0</div></div>
+            <div><div class="stat-item-label">Unpaid</div><div class="stat-item-val" id="kerryUnpaid" style="color:var(--orange)">$0</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Unpaid List (click to expand) -->
+      <div id="unpaidListPanel" class="unpaid-list-panel" style="display:none"></div>
+
+      <!-- Filters -->
+      <div class="filters" style="margin-bottom:0;padding-bottom:16px;">
+        <input class="filter-input" type="text" id="searchInput" placeholder="Search..." oninput="renderTable()">
+        <div class="multi-filter" id="filterPaidWrap">
+          <div class="mf-display" onclick="toggleMultiFilter('filterPaid')"><span class="mf-label" id="filterPaidLabel">All Payments</span><span class="mf-arrow">▾</span></div>
+          <div class="mf-dropdown" id="filterPaidDrop"></div>
+        </div>
+        <div class="multi-filter" id="filterCityWrap">
+          <div class="mf-display" onclick="toggleMultiFilter('filterCity')"><span class="mf-label" id="filterCityLabel">All Cities</span><span class="mf-arrow">▾</span></div>
+          <div class="mf-dropdown" id="filterCityDrop"></div>
+        </div>
+        <div class="multi-filter" id="filterInspectorWrap">
+          <div class="mf-display" onclick="toggleMultiFilter('filterInspector')"><span class="mf-label" id="filterInspectorLabel">All Inspectors</span><span class="mf-arrow">▾</span></div>
+          <div class="mf-dropdown" id="filterInspectorDrop"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:14px;align-items:center;padding:4px 0 8px;">
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t3);cursor:pointer;user-select:none;">
+          <input type="checkbox" id="expandAllCb" onchange="toggleExpandAll()"> <span>Expand All</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t3);cursor:pointer;user-select:none;">
+          <input type="checkbox" id="collapseAllCb" onchange="toggleCollapseAll()"> <span>Collapse All</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- SCROLLABLE: Inspection cards -->
+    <div class="scroll-area">
+      <div class="insp-list" id="inspList"></div>
+      <div class="add-btn" onclick="addInspection()">+ Add new inspection</div>
+    </div>
+  </div>
+</div>
+
+<!-- METRICS PAGE -->
+<div class="main" id="metricsPage" style="display:none;">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="hamburger" onclick="toggleSidebar()">☰</button>
+      <span class="month-label">📊 Company Metrics</span>
+    </div>
+    <div class="topbar-right">
+      <button class="month-btn" onclick="changeMetricsYear(-1)">‹</button>
+      <span class="month-label" id="metricsYearLabel" style="min-width:80px"></span>
+      <button class="month-btn" onclick="changeMetricsYear(1)">›</button>
+    </div>
+  </div>
+  <div style="flex:1;overflow-y:auto;padding:24px 28px 40px;">
+    <div id="metricsContent"></div>
+  </div>
+</div>
+
+<script>
+const CLIENT_ID = "517126187850-v6a7knfp9orhv0b426emkli792qv3uid.apps.googleusercontent.com";
+const API_KEY   = "AIzaSyBaXb9xr6udtu2jW8m7COjoEob9MsR4EcsS";
+const SCOPES = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.readonly";
+
+// ─── SHARED SHEET CONFIG ───
+// After first sync, paste the Sheet ID here so both inspectors share the same data.
+// Leave blank to auto-create a new sheet on first use.
+let SHEET_ID = "";
+
+let inspections=[], nextId=1, monthOffset=0, currentMonth=new Date().getMonth(), currentYear=new Date().getFullYear(), isSignedIn=false, tokenClient=null, expandedId=null;
+let saveTimeout = null; // debounce saves
+const hasCredentials=()=>CLIENT_ID.length>0&&API_KEY.length>0;
+
+let salesTaxPaid = {}; // key: "2026-Q1" → true/false
+let midcontPaid = {}; // key: "2026-01" → true/false
+
+// ─── LOCAL STORAGE PERSISTENCE ───
+function saveLocal() {
+  try {
+    localStorage.setItem('aaic_inspections', JSON.stringify(inspections));
+    localStorage.setItem('aaic_nextId', String(nextId));
+    localStorage.setItem('aaic_salesTaxPaid', JSON.stringify(salesTaxPaid));
+    localStorage.setItem('aaic_midcontPaid', JSON.stringify(midcontPaid));
+    localStorage.setItem('aaic_sheetId', SHEET_ID || '');
+  } catch(e) { console.warn('localStorage save failed:', e); }
+}
+function loadLocal() {
+  try {
+    const d = localStorage.getItem('aaic_inspections');
+    if (d) {
+      inspections = JSON.parse(d);
+      inspections.forEach(i => { i.id = parseInt(i.id) || 0; i.total = parseFloat(i.total) || 0; i.commission = parseFloat(i.commission) || 0; });
+    }
+    const nid = localStorage.getItem('aaic_nextId');
+    if (nid) nextId = parseInt(nid) || 1;
+    if (inspections.length) nextId = Math.max(nextId, Math.max(...inspections.map(i => i.id)) + 1);
+    const stp = localStorage.getItem('aaic_salesTaxPaid');
+    if (stp) try { salesTaxPaid = JSON.parse(stp); } catch(e) {}
+    const mcp = localStorage.getItem('aaic_midcontPaid');
+    if (mcp) try { midcontPaid = JSON.parse(mcp); } catch(e) {}
+    const sid = localStorage.getItem('aaic_sheetId');
+    if (sid && !SHEET_ID) SHEET_ID = sid;
+  } catch(e) { console.warn('localStorage load failed:', e); }
+}
+
+let gapiReady = false;
+let gisReady = false;
+
+function initGoogleAPI(){
+  if(!hasCredentials())return;
+  
+  // Load GAPI (just for token management)
+  const gs=document.createElement('script');
+  gs.src='https://apis.google.com/js/api.js';
+  gs.onload=()=>{
+    gapi.load('client', ()=>{
+      gapi.client.init({ apiKey: API_KEY }).then(()=>{
+        gapiReady = true;
+      }).catch(e => console.error('GAPI init:', e));
+    });
+  };
+  document.body.appendChild(gs);
+
+  // Load GIS (Google Identity Services)
+  const gis=document.createElement('script');
+  gis.src='https://accounts.google.com/gsi/client';
+  gis.onload=()=>{
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: async (resp) => {
+        hideLoading();
+        if (resp.error) { showError('Sign-in failed: ' + resp.error); return; }
+        isSignedIn = true;
+        updateUI();
+        fetchUserProfile();
+        // Load or create shared sheet
+        if (SHEET_ID) {
+          showLoading('Loading data...');
+          await loadFromSheet();
+          hideLoading();
+          showSheetId();
+        } else {
+          showLoading('Creating shared spreadsheet...');
+          await createSheet();
+          hideLoading();
+        }
+        fetchCalendarEvents();
+      }
+    });
+    gisReady = true;
+  };
+  document.body.appendChild(gis);
+}
+
+function handleSignIn(){if(!hasCredentials()){alert("Add your Google credentials in the HTML file first.\n\nOpen in Notepad, find CLIENT_ID and API_KEY, paste your keys.");return;}showLoading('Signing in...');tokenClient.requestAccessToken({prompt:'consent'});}
+function handleSignOut(){const t=gapi.client.getToken();if(t){google.accounts.oauth2.revoke(t.access_token);gapi.client.setToken(null);}isSignedIn=false;updateUI();}
+
+function updateUI(){
+  document.getElementById('syncLabel').textContent=isSignedIn?'Sync Calendar':'Connect Calendar';
+  document.getElementById('sideSignOut').style.display=isSignedIn?'flex':'none';
+  document.getElementById('sideUser').style.display=isSignedIn?'flex':'none';
+  document.getElementById('sideRefresh').style.display=isSignedIn&&SHEET_ID?'flex':'none';
+}
+
+async function refreshData(){
+  if(!SHEET_ID||!getToken())return;
+  showLoading('Refreshing data...');
+  await loadFromSheet();
+  hideLoading();
+}
+
+async function fetchUserProfile(){try{const r=await fetch('https://www.googleapis.com/oauth2/v2/userinfo',{headers:{Authorization:'Bearer '+gapi.client.getToken().access_token}});const d=await r.json();document.getElementById('userName').textContent=d.name||d.email||'';if(d.picture)document.getElementById('userPhoto').src=d.picture;}catch(e){}}
+
+// ─── GOOGLE SHEETS INTEGRATION ───
+const SHEET_FIELDS = ['id','googleId','date','address','city','radon','level','discount','discountReason','inspFee','radonFee','waterFee','mileage','total','taxable','inspector','commission','paid','agent','client','pmtStatus','yearBuilt','sqft','closingDate','notes'];
+
+function getToken() { return gapi?.client?.getToken?.()?.access_token; }
+
+async function sheetsAPI(path, method, body) {
+  const token = getToken();
+  if (!token) return null;
+  const opts = { method, headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const resp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}${path}`, opts);
+  if (!resp.ok) { console.error('Sheets API error:', resp.status, await resp.text()); return null; }
+  return resp.json();
+}
+
+async function createSheet() {
+  const token = getToken();
+  if (!token) return;
+  const resp = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      properties: { title: 'AAIC Inspection Tracker' },
+      sheets: [
+        { properties: { title: 'Inspections' } },
+        { properties: { title: 'Settings' } }
+      ]
+    })
+  });
+  if (!resp.ok) { showError('Failed to create spreadsheet'); return; }
+  const data = await resp.json();
+  SHEET_ID = data.spreadsheetId;
+  // Write headers
+  await sheetsAPI('/values/Inspections!A1:Y1?valueInputOption=RAW', 'PUT', { values: [SHEET_FIELDS] });
+  // Save sheet ID to Settings tab
+  await sheetsAPI('/values/Settings!A1:B3?valueInputOption=RAW', 'PUT', { values: [['Key','Value'],['sheetId',SHEET_ID],['salesTaxPaid',JSON.stringify(salesTaxPaid)]] });
+  showSheetId();
+}
+
+async function loadFromSheet() {
+  if (!SHEET_ID || !getToken()) return;
+  try {
+    // Load inspections
+    const data = await sheetsAPI('/values/Inspections!A1:Y10000', 'GET');
+    if (!data || !data.values || data.values.length < 2) return;
+    const headers = data.values[0];
+    const rows = data.values.slice(1);
+    inspections = rows.map(row => {
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = row[i] || ''; });
+      obj.id = parseInt(obj.id) || nextId++;
+      obj.total = parseFloat(obj.total) || 0;
+      obj.commission = parseFloat(obj.commission) || 0;
+      return obj;
+    });
+    if (inspections.length) nextId = Math.max(...inspections.map(i => i.id)) + 1;
+
+    // Load settings (salesTaxPaid, midcontPaid)
+    const settings = await sheetsAPI('/values/Settings!A1:B20', 'GET');
+    if (settings && settings.values) {
+      settings.values.forEach(row => {
+        if (row[0] === 'salesTaxPaid') try { salesTaxPaid = JSON.parse(row[1]); } catch(e) {}
+        if (row[0] === 'midcontPaid') try { midcontPaid = JSON.parse(row[1]); } catch(e) {}
+      });
+    }
+    renderTable();
+    saveLocal(); // persist to localStorage after sheet load
+  } catch(e) { console.error('Load from sheet error:', e); }
+}
+
+async function saveToSheet() {
+  if (!SHEET_ID || !getToken()) return;
+  try {
+    // Build rows from inspections
+    const rows = [SHEET_FIELDS];
+    inspections.forEach(i => {
+      rows.push(SHEET_FIELDS.map(f => i[f] !== undefined ? String(i[f]) : ''));
+    });
+    // Clear and write all data
+    await sheetsAPI('/values/Inspections!A1:Y10000:clear', 'POST');
+    await sheetsAPI('/values/Inspections!A1?valueInputOption=RAW', 'PUT', { values: rows });
+    // Save settings
+    await sheetsAPI('/values/Settings!A1:B20:clear', 'POST');
+    await sheetsAPI('/values/Settings!A1?valueInputOption=RAW', 'PUT', {
+      values: [['Key','Value'],['sheetId',SHEET_ID],['salesTaxPaid',JSON.stringify(salesTaxPaid)],['midcontPaid',JSON.stringify(midcontPaid)]]
+    });
+  } catch(e) { console.error('Save to sheet error:', e); }
+}
+
+function scheduleSave() {
+  saveLocal(); // Always save locally immediately
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => { saveToSheet(); }, 1500);
+}
+
+function showSheetId() {
+  if (SHEET_ID) {
+    const el = document.getElementById('sheetIdDisplay');
+    if (el) el.innerHTML = `<div style="font-size:10px;color:var(--t3);padding:4px 14px;word-break:break-all;">Sheet ID: <span style="color:var(--accent);cursor:pointer;" onclick="navigator.clipboard.writeText('${SHEET_ID}');this.textContent='Copied!';setTimeout(()=>this.textContent='${SHEET_ID}',1500)">${SHEET_ID}</span></div>`;
+  }
+}
+
+// ─── GMAIL PAYMENT SCANNING ───
+async function scanGmailPayments() {
+  const token = getToken();
+  if (!token) return;
+  showLoading('Scanning Gmail for payments...');
+  try {
+    // Search for HomeGauge payment emails from this year
+    const query = `from:support@HomeGauge.com subject:"Payment Received" after:${currentYear}/1/1`;
+    let allMessages = [];
+    let pageToken = '';
+    
+    // Paginate through all matching emails
+    do {
+      const url = `https://www.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=100${pageToken ? '&pageToken=' + pageToken : ''}`;
+      const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      if (!resp.ok) { console.error('Gmail search error:', resp.status); break; }
+      const data = await resp.json();
+      if (data.messages) allMessages = allMessages.concat(data.messages);
+      pageToken = data.nextPageToken || '';
+    } while (pageToken);
+
+    if (!allMessages.length) { hideLoading(); return; }
+
+    let matched = 0;
+    // Fetch each email and parse payment details
+    for (const msg of allMessages) {
+      const url = `https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`;
+      const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      
+      // Get subject line for address
+      const headers = data.payload?.headers || [];
+      const subject = headers.find(h => h.name === 'Subject')?.value || '';
+      // Subject format: "Payment Received: 3006 Yale Ct"
+      const addrMatch = subject.match(/Payment Received:\s*(.+)/i);
+      if (!addrMatch) continue;
+      const paymentAddr = addrMatch[1].trim();
+
+      // Get email body for amount
+      let body = getEmailBody(data);
+
+      // Parse amount from body: "A payment of $690.30 was made by..."
+      const amtMatch = body.match(/payment of \$([\d,]+\.?\d*)/i);
+      const paymentAmt = amtMatch ? parseFloat(amtMatch[1].replace(',', '')) : 0;
+
+      // Match to an inspection by address (fuzzy match)
+      const payAddrNorm = normalizeAddr(paymentAddr);
+      
+      for (const insp of inspections) {
+        if (!insp.address) continue;
+        const inspAddrNorm = normalizeAddr(insp.address);
+        // Check if addresses match (one contains the other)
+        const addrMatches = payAddrNorm.includes(inspAddrNorm) || inspAddrNorm.includes(payAddrNorm);
+        // Also check amount if available
+        const amtMatches = paymentAmt > 0 && Math.abs(insp.total - paymentAmt) < 1;
+        
+        if (addrMatches || (amtMatches && paymentAddr.length > 3)) {
+          // Update if currently unpaid OR already Paid HG (to fix tax/commission)
+          const unpaidStatuses = ['', 'Unpaid', 'Submitted HG', 'Submitted SQ'];
+          if (unpaidStatuses.includes(insp.pmtStatus)) {
+            insp.pmtStatus = 'Paid HG';
+            matched++;
+          }
+          // ALWAYS enforce: Paid HG = taxable + commission unpaid
+          if (insp.pmtStatus === 'Paid HG') {
+            insp.taxable = 'Yes';
+            insp.paid = 'No';
+          }
+          break; // Found match, move to next email
+        }
+      }
+    }
+
+    hideLoading();
+    if (matched > 0) {
+      renderTable();
+      scheduleSave();
+    }
+    return matched;
+  } catch(e) {
+    console.error('Gmail scan error:', e);
+    hideLoading();
+    return 0;
+  }
+}
+
+// ─── GMAIL RADON RESULTS SCANNING ───
+async function scanGmailRadon() {
+  const token = getToken();
+  if (!token) return;
+  showLoading('Scanning sent emails for radon results...');
+  try {
+    // Search sent emails for radon measurement reports from this year
+    const query = `in:sent subject:"Radon Measurement Report" after:${currentYear}/1/1`;
+    let allMessages = [];
+    let pageToken = '';
+    
+    do {
+      const url = `https://www.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=100${pageToken ? '&pageToken=' + pageToken : ''}`;
+      const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      if (!resp.ok) { console.error('Gmail radon search error:', resp.status); break; }
+      const data = await resp.json();
+      if (data.messages) allMessages = allMessages.concat(data.messages);
+      pageToken = data.nextPageToken || '';
+    } while (pageToken);
+
+    if (!allMessages.length) { hideLoading(); return 0; }
+
+    let matched = 0;
+    for (const msg of allMessages) {
+      const url = `https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`;
+      const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      
+      // Get subject line for address
+      // Formats: "Radon Measurement Report for 1253 Range View Cir"
+      //          "Radon Measurement Report, 23974 Thompson Dr, Hill City, SD 57745"
+      //          "Fwd: Radon Measurement Report for 4449 Misty Woods Ln"
+      //          "Re: Radon Measurement Report..."
+      const headers = data.payload?.headers || [];
+      const subject = headers.find(h => h.name === 'Subject')?.value || '';
+      // Strip Fwd:, Re:, etc. prefixes
+      const cleanSubject = subject.replace(/^(?:(?:Fwd|Fw|Re):\s*)+/i, '');
+      const radonAddrMatch = cleanSubject.match(/Radon Measurement Report[,\s]+(?:for\s+)?([^,\n]+)/i);
+      let radonAddr = radonAddrMatch ? radonAddrMatch[1].trim() : '';
+
+      // Get email body for radon level
+      let body = getEmailBody(data);
+
+      // If no address from subject, try extracting from body
+      // Body format: "radon test results for 529 Bluebird Dr."
+      if (!radonAddr) {
+        const bodyAddrMatch = body.match(/radon test results for\s+([^.]+)\./i);
+        if (bodyAddrMatch) radonAddr = bodyAddrMatch[1].trim();
+      }
+      if (!radonAddr) continue;
+
+      // Parse radon level: "The overall average was 14.6 pCi/L" or "2.8 pCi/L"
+      const levelMatch = body.match(/overall average was\s+([\d.]+)\s*pCi\/L/i);
+      if (!levelMatch) continue;
+      const radonLevel = levelMatch[1];
+      const radonFloat = parseFloat(radonLevel);
+
+      // Match to an inspection by address
+      const radonAddrNorm = normalizeAddr(radonAddr);
+      
+      for (const insp of inspections) {
+        if (!insp.address || parseMoney(insp.radonFee) <= 0) continue;
+        const inspAddrNorm = normalizeAddr(insp.address);
+        const addrMatches = radonAddrNorm.includes(inspAddrNorm) || inspAddrNorm.includes(radonAddrNorm);
+        
+        if (addrMatches) {
+          // Only update if radon level not already set
+          if (!insp.level) {
+            insp.level = radonLevel + ' pCi/L';
+            insp.radon = 'Complete';
+            matched++;
+          }
+          break;
+        }
+      }
+    }
+
+    hideLoading();
+    if (matched > 0) {
+      renderTable();
+      scheduleSave();
+    }
+    return matched;
+  } catch(e) {
+    console.error('Gmail radon scan error:', e);
+    hideLoading();
+    return 0;
+  }
+}
+
+// ─── SHARED EMAIL HELPERS ───
+function normalizeAddr(s) { return s.toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+function getEmailBody(data) {
+  let body = '';
+  function extractText(payload) {
+    if (payload.body?.data) {
+      const decoded = atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+      if (payload.mimeType === 'text/plain') { body = decoded; return true; }
+      if (payload.mimeType === 'text/html' && !body) body = decoded;
+    }
+    if (payload.parts) {
+      for (const part of payload.parts) {
+        if (extractText(part)) return true; // found plain text, stop
+      }
+    }
+    return false;
+  }
+  if (data.payload) extractText(data.payload);
+  // Strip HTML tags if we only got HTML
+  if (body.includes('<') && body.includes('>')) {
+    body = body.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
+  }
+  return body;
+}
+
+async function fetchCalendarEvents(){
+  if(!isSignedIn) { handleSignIn(); return; }
+  const token = gapi?.client?.getToken?.()?.access_token;
+  if(!token) { showError('Not signed in. Click Sync Calendar to sign in.'); return; }
+  showLoading('Syncing calendar...');
+  try{
+    // Fetch entire year to populate all months and metrics
+    const s=new Date(currentYear,0,1).toISOString();
+    const e=new Date(currentYear,11,31,23,59,59).toISOString();
+    let allItems=[];
+    let pageToken='';
+    // Paginate to get all events (calendar API returns max 250 per page)
+    do {
+      const url=`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(s)}&timeMax=${encodeURIComponent(e)}&showDeleted=false&singleEvents=true&orderBy=startTime&maxResults=250${pageToken?'&pageToken='+pageToken:''}`;
+      const resp=await fetch(url,{headers:{Authorization:'Bearer '+token}});
+      if(!resp.ok){const err=await resp.json();throw new Error(err.error?.message||'API error '+resp.status);}
+      const data=await resp.json();
+      allItems=allItems.concat(data.items||[]);
+      pageToken=data.nextPageToken||'';
+    } while(pageToken);
+    const items=allItems;const newI=[];
+    items.forEach(ev=>{if(!ev.start?.dateTime)return;const p=parseCalendarEvent(ev);if(p){const ex=inspections.find(i=>i.googleId===ev.id);if(ex){
+      // Save user-entered values before overwriting
+      const saved={radon:ex.radon,level:ex.level,discount:ex.discount,discountReason:ex.discountReason,taxable:ex.taxable,paid:ex.paid,pmtStatus:ex.pmtStatus,closingDate:ex.closingDate,notes:ex.notes};
+      Object.assign(ex,p);
+      // Restore user values (prefer user input over calendar defaults)
+      if(saved.radon)ex.radon=saved.radon;
+      if(saved.level)ex.level=saved.level;
+      if(saved.discount)ex.discount=saved.discount;
+      if(saved.discountReason)ex.discountReason=saved.discountReason;
+      if(saved.taxable)ex.taxable=saved.taxable;
+      if(saved.paid)ex.paid=saved.paid;
+      if(saved.pmtStatus&&saved.pmtStatus!=='Unpaid')ex.pmtStatus=saved.pmtStatus;
+      if(saved.closingDate)ex.closingDate=saved.closingDate;
+      if(saved.notes)ex.notes=saved.notes;
+    }else{newI.push({id:nextId++,...p});}}});
+    // Remove calendar inspections that no longer exist in Google Calendar for this year
+    const calendarGoogleIds = new Set(items.filter(ev=>ev.start?.dateTime).map(ev=>ev.id));
+    const yearStart = new Date(currentYear, 0, 1);
+    const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59);
+    inspections = inspections.filter(i => {
+      if (!i.googleId) return true; // Keep manually added inspections
+      const d = new Date(i.date + 'T12:00:00');
+      if (d < yearStart || d > yearEnd) return true; // Keep inspections from other years
+      return calendarGoogleIds.has(i.googleId); // Only keep if still in calendar
+    });
+    inspections=[...inspections.filter(i=>i.googleId),...newI,...inspections.filter(i=>!i.googleId)];
+    const seen=new Set();inspections=inspections.filter(i=>{const k=i.googleId||i.id;if(seen.has(k))return false;seen.add(k);return true;});
+    hideLoading();renderTable();scheduleSave();
+    // Scan Gmail for payment confirmations and radon results
+    const pmtCount = await scanGmailPayments() || 0;
+    const radonCount = await scanGmailRadon() || 0;
+    
+    // ENFORCE RULES: Paid HG = always taxable + commission unpaid
+    let enforced = 0;
+    inspections.forEach(insp => {
+      if (insp.pmtStatus === 'Paid HG') {
+        if (insp.taxable !== 'Yes' || insp.paid !== 'No') {
+          insp.taxable = 'Yes';
+          insp.paid = 'No';
+          enforced++;
+        }
+      }
+    });
+    
+    if (pmtCount > 0 || radonCount > 0 || enforced > 0) {
+      renderTable(); scheduleSave();
+      const parts = [];
+      if (pmtCount > 0) parts.push(`${pmtCount} payment${pmtCount > 1 ? 's' : ''}`);
+      if (radonCount > 0) parts.push(`${radonCount} radon result${radonCount > 1 ? 's' : ''}`);
+      if (parts.length) {
+        showLoading(`✅ Updated ${parts.join(' and ')} from Gmail`);
+        setTimeout(hideLoading, 4000);
+      }
+    }
+  }catch(e){hideLoading();showError('Sync failed: '+(e.message||e));}
+}
+
+function parseCalendarEvent(ev){
+  const title=ev.summary||'',location=ev.location||'',desc=ev.description||'',colorId=ev.colorId||'';
+
+  // STRICT FILTER: Only accept HomeGauge events
+  // HomeGauge events ALWAYS have "Services (Total:" and "Report ID" in the description
+  const isHomeGauge = /Services\s*\(Total:/i.test(desc) || /Report ID/i.test(desc);
+  if(!isHomeGauge) return null;
+
+  let client='',address='';const tp=title.split(/\s*[-–]\s*/);
+  if(tp.length>=2){client=tp[0].trim();address=tp.slice(1).join(' - ').trim();}else{client=title;}
+
+  let city='';if(location){const lp=location.split(',').map(p=>p.trim());for(let i=lp.length-1;i>=0;i--){if(/\b[A-Z]{2}\s+\d{5}/.test(lp[i])){if(i>0)city=lp[i-1];break;}}if(!city&&lp.length>=2)city=lp[lp.length-2];if(!address)address=lp[0]||'';}
+
+  const blueColors=['9','7','1','3'];let inspector='Brett';if(blueColors.includes(colorId))inspector='Kerry';
+
+  let inspFee='',radonFee='',waterFee='',mileage='',sqft='',buyerAgent='',discount='',discountReason='';
+  const feeMatch=desc.match(/Services\s*\(Total:\s*\$([\d,.]+)\)/i);const totalFromDesc=feeMatch?parseFloat(feeMatch[1].replace(',','')):0;
+  const im=desc.match(/Home Inspection[^$]*\$([\d,.]+)/i);if(im)inspFee='$'+parseFloat(im[1].replace(',','')).toFixed(2);
+  const dm=desc.matchAll(/Discount,?\s*([^(]*?)\s*\(\$([\d,.]+)\)/gi);
+  const discounts=[];const discountReasons=[];
+  for(const m of dm){discounts.push(parseFloat(m[2].replace(',','')));discountReasons.push(m[1].trim());}
+  if(discounts.length){discount='-$'+discounts.reduce((a,b)=>a+b,0).toFixed(2);discountReason=discountReasons.filter(r=>r).join(', ');}
+  const mm=desc.match(/Mileage\s*\$([\d,.]+)/i);if(mm)mileage='$'+parseFloat(mm[1].replace(',','')).toFixed(2);
+  // Only match Radon/Water fees in the services list (line must start with a number or have $ amount right after)
+  const rm=desc.match(/(?:^|\n)\s*\d+\s+Radon[^$\n]*\$([\d,.]+)/im);if(rm)radonFee='$'+parseFloat(rm[1].replace(',','')).toFixed(2);
+  const wm=desc.match(/(?:^|\n)\s*\d+\s+Water[^$\n]*\$([\d,.]+)/im);if(wm)waterFee='$'+parseFloat(wm[1].replace(',','')).toFixed(2);
+  const sm=desc.match(/Square Footage:\s*([\d,]+)/i);if(sm)sqft=sm[1].replace(',','');
+  const ybm=desc.match(/Year Built:\s*(\d{4})/i);const ybVal=ybm?ybm[1]:'';
+  const bm=desc.match(/Buyer'?s?\s*Agent\s*[-–]?\s*([^\n(]+)/i);if(bm)buyerAgent=bm[1].trim();
+
+  const total=totalFromDesc||( parseMoney(inspFee)+parseMoney(discount)+parseMoney(radonFee)+parseMoney(waterFee)+parseMoney(mileage) );
+  return{googleId:ev.id,date:ev.start.dateTime.split('T')[0],address:address||location.split(',')[0]||'',city,radon:radonFee?'Yes':'No',level:'',discount,discountReason,inspFee,radonFee,waterFee,mileage,total,taxable:'',inspector,commission:total,paid:'',agent:buyerAgent,client,pmtStatus:'Unpaid',yearBuilt:ybVal,sqft:sqft,closingDate:'',notes:''};
+}
+
+function parseMoney(v){if(!v)return 0;return parseFloat(String(v).replace(/[^0-9.-]/g,''))||0;}
+function preTax(total){return total*(100/106.2);}
+function calcCommission(i){
+  // Commission = pre-tax(inspFee + radonFee + mileage + discount) + flat $50 if water test
+  // inspFee from HomeGauge always includes tax, so always strip it
+  const base = parseMoney(i.inspFee) + parseMoney(i.radonFee) + parseMoney(i.mileage) + parseMoney(i.discount);
+  const water = parseMoney(i.waterFee) > 0 ? 50 : 0;
+  return Math.round(preTax(base)) + water;
+}
+function fmtMoney(v){if(!v||v===0)return'';return'$'+Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function showLoading(m){document.getElementById('statusLoading').style.display='flex';document.getElementById('loadingText').textContent=m;}
+function hideLoading(){document.getElementById('statusLoading').style.display='none';}
+function showError(m){document.getElementById('statusError').style.display='flex';document.getElementById('errorText').textContent=m;}
+
+function changeMonth(d){monthOffset+=d;const b=new Date(currentYear,currentMonth+monthOffset);currentMonth=b.getMonth();currentYear=b.getFullYear();monthOffset=0;payAllSnapshot={};const pab=document.getElementById('payAllBrett');const pak=document.getElementById('payAllKerry');if(pab)pab.checked=false;if(pak)pak.checked=false;if(isSignedIn)fetchCalendarEvents();renderTable();}
+function getMonthLabel(){return new Date(currentYear,currentMonth).toLocaleDateString('en-US',{month:'long',year:'numeric'});}
+
+function addInspection(){const day=Math.min(new Date().getDate(),28);const ds=`${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;inspections.push({id:nextId++,googleId:null,date:ds,address:'',city:'',radon:'',level:'',discount:'',discountReason:'',inspFee:'',radonFee:'',waterFee:'',mileage:'',total:0,taxable:'',inspector:'Brett',commission:0,paid:'',agent:'',client:'',pmtStatus:'Unpaid',yearBuilt:'',sqft:'',closingDate:'',notes:''});renderTable();scheduleSave();}
+
+function updateField(id,field,value){const i=inspections.find(x=>x.id===id);if(!i)return;i[field]=value;if(['inspFee','radonFee','waterFee','mileage','discount'].includes(field)){i.total=parseMoney(i.inspFee)+parseMoney(i.discount)+parseMoney(i.radonFee)+parseMoney(i.waterFee)+parseMoney(i.mileage);i.commission=i.total;}if(field==='pmtStatus'&&value==='Cash'){i.paid='Yes';}renderTable();scheduleSave();}
+
+function startEdit(el,id,field){const i=inspections.find(x=>x.id===id);const val=i[field]||'';el.innerHTML=`<input class="ed-input" value="${String(val).replace(/"/g,'&quot;')}" onblur="finishEdit(this,${id},'${field}')" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){this.dataset.cancel='1';this.blur();}">`;el.querySelector('input').focus();}
+function finishEdit(input,id,field){if(input.dataset.cancel){renderTable();return;}updateField(id,field,input.value);}
+function deleteRow(id){if(!confirm('Delete this inspection?'))return;inspections=inspections.filter(i=>i.id!==id);renderTable();scheduleSave();}
+function updateNotes(id,val){const i=inspections.find(x=>x.id===id);if(i){i.notes=val;scheduleSave();}}
+
+function toggleDetail(e, wrap) {
+  // Don't toggle if clicking on editable fields, selects, buttons, textareas, inputs
+  const tag = e.target.tagName;
+  if (tag === 'SELECT' || tag === 'OPTION' || tag === 'BUTTON' || tag === 'TEXTAREA' || tag === 'INPUT') return;
+  if (e.target.closest('.del-btn') || e.target.closest('select') || e.target.closest('textarea') || e.target.closest('input')) return;
+  // Don't toggle if user is editing (clicked an .ed element)
+  if (e.target.classList.contains('ed') || e.target.closest('.ed')) return;
+  // Don't close if clicking inside the detail-row content area
+  if (e.target.closest('.detail-row') && e.target.closest('.detail-field')) return;
+  const detail = wrap.querySelector('.detail-row');
+  if (detail) detail.classList.toggle('expanded');
+}
+
+function scrollToInspection(id) {
+  const el = document.getElementById('insp-' + id);
+  if (!el) return;
+  // Expand the detail row
+  const detail = el.querySelector('.detail-row');
+  if (detail) detail.classList.add('expanded');
+  // Scroll into view with highlight flash
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.style.outline = '2px solid #EF4444';
+  el.style.outlineOffset = '2px';
+  el.style.borderRadius = '12px';
+  setTimeout(() => { el.style.outline = 'none'; }, 2500);
+}
+
+let collapseAllMode = false;
+let payAllSnapshot = {}; // stores { 'Brett': [{id, prevPaid}, ...], 'Kerry': [...] }
+
+function togglePayAll(inspector, checked) {
+  if (checked) {
+    // Save current states and set all to Paid
+    const snapshot = [];
+    inspections.forEach(i => {
+      if (!i.address) return;
+      const d = new Date(i.date + 'T12:00:00');
+      if (d.getMonth() !== currentMonth || d.getFullYear() !== currentYear) return;
+      if (i.inspector !== inspector) return;
+      snapshot.push({ id: i.id, prevPaid: i.paid });
+      i.paid = 'Yes';
+    });
+    payAllSnapshot[inspector] = snapshot;
+    renderTable();
+    scheduleSave();
+  } else {
+    // Restore previous states
+    const snapshot = payAllSnapshot[inspector] || [];
+    snapshot.forEach(s => {
+      const i = inspections.find(x => x.id === s.id);
+      if (i) i.paid = s.prevPaid;
+    });
+    delete payAllSnapshot[inspector];
+    renderTable();
+    scheduleSave();
+  }
+}
+
+function toggleExpandAll() {
+  const cb = document.getElementById('expandAllCb');
+  if (cb.checked) {
+    // Uncheck collapse all
+    document.getElementById('collapseAllCb').checked = false;
+    collapseAllMode = false;
+    document.querySelectorAll('.insp-wrap').forEach(w => {
+      w.classList.remove('no-hover');
+      w.querySelector('.detail-row')?.classList.add('expanded');
+    });
+  } else {
+    document.querySelectorAll('.detail-row').forEach(d => d.classList.remove('expanded'));
+  }
+}
+
+function toggleCollapseAll() {
+  const cb = document.getElementById('collapseAllCb');
+  if (cb.checked) {
+    // Uncheck expand all
+    document.getElementById('expandAllCb').checked = false;
+    collapseAllMode = true;
+    document.querySelectorAll('.detail-row').forEach(d => d.classList.remove('expanded'));
+    document.querySelectorAll('.insp-wrap').forEach(w => w.classList.add('no-hover'));
+  } else {
+    collapseAllMode = false;
+    document.querySelectorAll('.insp-wrap').forEach(w => w.classList.remove('no-hover'));
+  }
+}
+function toggleExpand(id){expandedId=expandedId===id?null:id;renderTable();}
+
+function makeSel(id,field,value,options){return`<select class="cell-sel" onchange="updateField(${id},'${field}',this.value);renderTable();">${options.map(o=>{const v=typeof o==='object'?o.value:o;const l=typeof o==='object'?o.label:o;return`<option value="${v}" ${value===v?'selected':''}>${l}</option>`;}).join('')}</select>`;}
+
+function makeCardSel(id,field,value,options,label){
+  const unpaidVals=['Unpaid','Submitted HG','Submitted SQ','Awaiting Closing','No'];
+  const isUnpaidPmt = field==='pmtStatus' && unpaidVals.includes(value);
+  const isPaidPmt = field==='pmtStatus' && !unpaidVals.includes(value) && value;
+  // Determine if this field needs attention (blank/default)
+  let needsInput = false;
+  if (field==='taxable' && !value) needsInput = true;
+  if (field==='pmtStatus' && value==='Unpaid') needsInput = true;
+  if (field==='paid' && !value) needsInput = true;
+  const niClass = needsInput ? ' needs-input' : '';
+  const niLabel = needsInput ? ' needs-input' : '';
+  return`<div><div class="card-sel-label${niLabel}">${label}</div><select class="card-sel${isUnpaidPmt?' pmt-unpaid':''}${isPaidPmt?' pmt-paid':''}${niClass}" onchange="updateField(${id},'${field}',this.value);renderTable();">${options.map(o=>{const v=typeof o==='object'?o.value:o;const l=typeof o==='object'?o.label:o;const isOptUnpaid=field==='pmtStatus'&&unpaidVals.includes(v);const isOptPaid=field==='pmtStatus'&&!unpaidVals.includes(v)&&v;return`<option value="${v}" ${value===v?'selected':''} ${isOptUnpaid?'class="opt-unpaid"':''}${isOptPaid?'class="opt-paid"':''}>${l}</option>`;}).join('')}</select></div>`;
+}
+
+function exportCSV(){const v=getVisible();const rows=[['Date','Address','City','Radon','Level','Discount','Insp Fee','Radon Fee','Water Fee','Mileage','Total','Taxable','Inspector','Commission','Paid','Agent','Client','PMT Status','Year Built','SQFT','Notes']];v.forEach(i=>{rows.push([i.date,i.address,i.city,i.radon,i.level,i.discount,i.inspFee,i.radonFee,i.waterFee,i.mileage,fmtMoney(i.total),i.taxable,i.inspector,fmtMoney(i.commission),i.paid,i.agent,i.client,i.pmtStatus,i.yearBuilt||'',i.sqft||'',i.notes]);});const csv=rows.map(r=>r.map(c=>`"${c||''}"`).join(',')).join('\n');const blob=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`inspections-${getMonthLabel().replace(' ','-')}.csv`;a.click();}
+
+// Multi-select filter state
+const filterSelections = {
+  filterPaid: [],
+  filterCity: [],
+  filterInspector: []
+};
+
+const paidOptions = ['Unpaid','Submitted HG','Submitted SQ','Awaiting Closing','No','Paid HG','Paid SQ','Venmo','Zelle','Cash','Check'];
+const inspectorOptions = ['Brett','Kerry'];
+
+function buildFilterDropdown(id, options, allLabel) {
+  const drop = document.getElementById(id + 'Drop');
+  const wasOpen = drop.classList.contains('open');
+  const sel = filterSelections[id];
+  const allSelected = sel.length === 0;
+  let h = `<div class="mf-opt mf-opt-all ${allSelected?'selected':''}" onclick="event.stopPropagation();clearFilter('${id}')"><span class="mf-check">${allSelected?'✓':''}</span>${allLabel}</div>`;
+  options.forEach(opt => {
+    const isSel = sel.includes(opt);
+    h += `<div class="mf-opt ${isSel?'selected':''}" onclick="event.stopPropagation();toggleFilterOpt('${id}','${opt.replace(/'/g,"\\'")}')"><span class="mf-check">${isSel?'✓':''}</span>${opt}</div>`;
+  });
+  drop.innerHTML = h;
+  if (wasOpen) drop.classList.add('open');
+  const label = document.getElementById(id + 'Label');
+  if (sel.length === 0) label.textContent = allLabel;
+  else if (sel.length === 1) label.textContent = sel[0];
+  else label.textContent = sel.length + ' selected';
+}
+
+function toggleMultiFilter(id) {
+  const drop = document.getElementById(id + 'Drop');
+  const display = drop.parentElement.querySelector('.mf-display');
+  const isOpen = drop.classList.contains('open');
+  // Close all others
+  document.querySelectorAll('.mf-dropdown').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.mf-display').forEach(d => d.classList.remove('active'));
+  if (!isOpen) { drop.classList.add('open'); display.classList.add('active'); }
+}
+
+function toggleFilterOpt(id, opt) {
+  const sel = filterSelections[id];
+  const idx = sel.indexOf(opt);
+  if (idx >= 0) sel.splice(idx, 1); else sel.push(opt);
+  const allLabel = id === 'filterPaid' ? 'All Payments' : id === 'filterCity' ? 'All Cities' : 'All Inspectors';
+  const options = id === 'filterPaid' ? paidOptions : id === 'filterInspector' ? inspectorOptions : getCityOptions();
+  buildFilterDropdown(id, options, allLabel);
+  renderTable();
+}
+
+function clearFilter(id) {
+  filterSelections[id] = [];
+  const allLabel = id === 'filterPaid' ? 'All Payments' : id === 'filterCity' ? 'All Cities' : 'All Inspectors';
+  const options = id === 'filterPaid' ? paidOptions : id === 'filterInspector' ? inspectorOptions : getCityOptions();
+  buildFilterDropdown(id, options, allLabel);
+  renderTable();
+}
+
+function getCityOptions() {
+  return [...new Set(inspections.map(i => i.city).filter(Boolean))].sort();
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.multi-filter')) {
+    document.querySelectorAll('.mf-dropdown').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.mf-display').forEach(d => d.classList.remove('active'));
+  }
+});
+
+function getVisible(){
+  const search=document.getElementById('searchInput').value.toLowerCase();
+  const pmtF=filterSelections.filterPaid;
+  const cityF=filterSelections.filterCity;
+  const inspF=filterSelections.filterInspector;
+  return inspections.filter(i=>{
+    const d=new Date(i.date+'T12:00:00');
+    if(d.getMonth()!==currentMonth||d.getFullYear()!==currentYear)return false;
+    if(pmtF.length>0 && !pmtF.includes(i.pmtStatus))return false;
+    if(cityF.length>0 && !cityF.includes(i.city))return false;
+    if(inspF.length>0 && !inspF.includes(i.inspector))return false;
+    if(search){const h=[i.address,i.city,i.agent,i.client,i.notes,i.inspector].join(' ').toLowerCase();if(!h.includes(search))return false;}
+    return true;
+  }).sort((a,b)=>a.date.localeCompare(b.date));
+}
+
+function pmtTagClass(s){if(!s)return'tag-unpaid';const l=s.toLowerCase();if(l==='paid hg')return'tag-paid';if(l==='submitted hg')return'tag-submitted';if(l==='submitted sq')return'tag-submitted';if(l==='paid sq')return'tag-paid-sq';if(l==='venmo')return'tag-venmo';if(l==='zelle')return'tag-zelle';if(l==='cash')return'tag-cash';if(l==='check')return'tag-paid';if(l==='awaiting closing')return'tag-awaiting';if(l==='no')return'tag-no';if(l==='unpaid')return'tag-unpaid';return'tag-paid';}
+
+function getUnpaidInspections(){
+  const unpaidS=['','Unpaid','Submitted HG','Submitted SQ','No','Awaiting Closing'];
+  return inspections.filter(i=>{
+    const d=new Date(i.date+'T12:00:00');
+    return d.getMonth()===currentMonth && d.getFullYear()===currentYear && i.address && unpaidS.includes(i.pmtStatus);
+  }).sort((a,b)=>{
+    if(a.inspector!==b.inspector)return a.inspector.localeCompare(b.inspector);
+    if(a.date!==b.date)return a.date.localeCompare(b.date);
+    return a.address.localeCompare(b.address);
+  });
+}
+
+function buildUnpaidHTML(items){
+  if(!items.length)return'<div style="font-size:12px;color:var(--t3);padding:4px">No unpaid invoices</div>';
+  let h='';
+  const grouped={Brett:[],Kerry:[]};
+  items.forEach(i=>{if(grouped[i.inspector])grouped[i.inspector].push(i);});
+  ['Brett','Kerry'].forEach(name=>{
+    const list=grouped[name];if(!list.length)return;
+    const cls=name==='Brett'?'brett':'kerry';
+    h+=`<div class="unpaid-tooltip-group"><div class="unpaid-tooltip-group-label ${cls}">🔴 ${name==='Brett'?'🔴':'🔵'} ${name}</div>`.replace('🔴 🔴','🔴').replace('🔴 🔵','🔵');
+    list.forEach(i=>{
+      const dt=new Date(i.date+'T12:00:00');
+      const dStr=(dt.getMonth()+1)+'/'+dt.getDate();
+      h+=`<div class="unpaid-tooltip-row"><span class="utp-date">${dStr}</span><span class="utp-addr">${i.address}</span><span class="utp-amt">${fmtMoney(i.total)}</span></div>`;
+    });
+    h+=`</div>`;
+  });
+  return h;
+}
+
+function showUnpaidTooltip(e){
+  const el=document.getElementById('unpaidTooltip');
+  const items=getUnpaidInspections();
+  el.innerHTML=`<div class="unpaid-tooltip-header">Unpaid Invoices — ${getMonthLabel()}</div>`+buildUnpaidHTML(items);
+  const rect=e.currentTarget.getBoundingClientRect();
+  el.style.top=(rect.bottom+8)+'px';
+  el.style.left=Math.max(10,rect.left-100)+'px';
+  el.classList.add('show');
+}
+function hideUnpaidTooltip(){document.getElementById('unpaidTooltip').classList.remove('show');}
+
+let unpaidListOpen=false;
+function toggleUnpaidList(){
+  unpaidListOpen=!unpaidListOpen;
+  const panel=document.getElementById('unpaidListPanel');
+  if(!unpaidListOpen){panel.style.display='none';return;}
+  const items=getUnpaidInspections();
+  const total=items.reduce((s,i)=>s+(i.total||0),0);
+  let h=`<div class="ulp-header"><span class="ulp-title">Revenue Outstanding — ${getMonthLabel()} (${items.length} invoices · ${fmtMoney(total)})</span><button class="ulp-close" onclick="toggleUnpaidList()">✕</button></div>`;
+  h+=`<table><thead><tr><th>Inspector</th><th>Date</th><th>Address</th><th>Client</th><th>Amount</th><th>Status</th></tr></thead><tbody>`;
+  items.forEach(i=>{
+    const dt=new Date(i.date+'T12:00:00');
+    const dStr=(dt.getMonth()+1)+'/'+dt.getDate()+'/'+dt.getFullYear();
+    const cls=i.inspector==='Brett'?'ulp-brett':'ulp-kerry';
+    h+=`<tr><td class="ulp-inspector ${cls}">${i.inspector}</td><td>${dStr}</td><td>${i.address}</td><td>${i.client||'—'}</td><td class="ulp-amt">${fmtMoney(i.total)}</td><td class="ulp-status">${i.pmtStatus||'—'}</td></tr>`;
+  });
+  h+=`</tbody></table>`;
+  panel.innerHTML=h;
+  panel.style.display='block';
+}
+
+function checkRadonOverdue() {
+  const now = new Date();
+  const overdue = [];
+  const viewYear = currentYear;
+  const viewMonth = currentMonth;
+  inspections.forEach(i => {
+    if (!i.address) return;
+    // Only check inspections in the currently viewed month
+    const inspDate = new Date(i.date + 'T12:00:00');
+    if (inspDate.getFullYear() !== viewYear || inspDate.getMonth() !== viewMonth) return;
+    // Has radon test: radonFee > 0, or radon field is Yes/Complete/truthy (but not No/empty)
+    const hasRadonFee = parseMoney(i.radonFee) > 0;
+    const radonField = (i.radon || '').toLowerCase();
+    const hasRadon = hasRadonFee || (radonField === 'yes') || (radonField === 'complete');
+    if (!hasRadon) return;
+    // Already complete — skip
+    if (radonField === 'complete') return;
+    // Level already entered — skip (check various empty states)
+    const level = (i.level || '').trim();
+    if (level && level !== '—' && level !== '-' && level !== '0') return;
+    // Check if 72 hours have passed since inspection
+    const hoursSince = (now - inspDate) / (1000 * 60 * 60);
+    if (hoursSince < 72) return;
+    // Calculate pickup time (48 hours after inspection)
+    const pickupDate = new Date(inspDate.getTime() + 48 * 60 * 60 * 1000);
+    const daysOverdue = Math.floor((hoursSince - 72) / 24);
+    overdue.push({ id: i.id, inspector: i.inspector, address: i.address, city: i.city, date: i.date, pickupDate, daysOverdue, hoursSince });
+  });
+
+  const alertEl = document.getElementById('radonAlert');
+  const textEl = document.getElementById('radonAlertText');
+  const tipEl = document.getElementById('radonAlertTooltip');
+
+  if (overdue.length === 0) {
+    alertEl.style.display = 'none';
+    return;
+  }
+
+  alertEl.style.display = 'block';
+  textEl.textContent = `Warning: ${overdue.length} radon test${overdue.length > 1 ? 's' : ''} past due`;
+
+  let tipHtml = '<div class="at-header red">☢️ Overdue Radon Tests</div>';
+  overdue.sort((a, b) => b.hoursSince - a.hoursSince);
+  overdue.forEach(o => {
+    const cls = o.inspector === 'Brett' ? 'brett' : 'kerry';
+    const icon = o.inspector === 'Brett' ? '🔴' : '🔵';
+    const pickupStr = o.pickupDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + o.pickupDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const daysText = o.daysOverdue === 0 ? 'Due today' : `${o.daysOverdue}d overdue`;
+    tipHtml += `<div class="at-row" onclick="scrollToInspection(${o.id})" style="cursor:pointer">
+      <span class="at-inspector ${cls}">${icon} ${o.inspector}</span>
+      <span><span class="at-addr">${o.address}</span>${o.city ? '<br><span style="color:var(--t4);font-size:11px">' + o.city + '</span>' : ''}<br><span class="at-detail orange">Pickup: ${pickupStr}</span></span>
+      <span class="at-detail red">${daysText}</span>
+    </div>`;
+  });
+  tipEl.innerHTML = tipHtml;
+}
+
+function checkUnpaidOverdue() {
+  const now = new Date();
+  const overdue = [];
+  const unpaidStatuses = ['', 'Unpaid', 'Submitted HG', 'Submitted SQ'];
+  // Only check inspections in the currently viewed month
+  const viewYear = currentYear;
+  const viewMonth = currentMonth;
+  inspections.forEach(i => {
+    if (!i.address) return;
+    if (!unpaidStatuses.includes(i.pmtStatus)) return;
+    const inspDate = new Date(i.date + 'T12:00:00');
+    if (inspDate.getFullYear() !== viewYear || inspDate.getMonth() !== viewMonth) return;
+    const hoursSince = (now - inspDate) / (1000 * 60 * 60);
+    if (hoursSince < 48) return;
+    const daysOverdue = Math.floor(hoursSince / 24);
+    overdue.push({ id: i.id, inspector: i.inspector, address: i.address, city: i.city, date: i.date, total: parseMoney(i.total), pmtStatus: i.pmtStatus || 'Unpaid', daysOverdue });
+  });
+
+  const alertEl = document.getElementById('unpaidAlert');
+  const textEl = document.getElementById('unpaidAlertText');
+  const tipEl = document.getElementById('unpaidAlertTooltip');
+
+  if (overdue.length === 0) {
+    alertEl.style.display = 'none';
+    return;
+  }
+
+  const totalAmt = overdue.reduce((s, o) => s + (o.total || 0), 0);
+  alertEl.style.display = 'block';
+  textEl.textContent = `${overdue.length} unpaid inspection${overdue.length > 1 ? 's' : ''} past 48 hours — ${fmtMoney(totalAmt)} outstanding`;
+
+  let tipHtml = '<div class="at-header orange">💰 Unpaid Inspections (48h+)</div>';
+  overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
+  overdue.forEach(o => {
+    const cls = o.inspector === 'Brett' ? 'brett' : 'kerry';
+    const icon = o.inspector === 'Brett' ? '🔴' : '🔵';
+    const dt = new Date(o.date + 'T12:00:00');
+    const dateStr = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    tipHtml += `<div class="at-row" onclick="scrollToInspection(${o.id})" style="cursor:pointer">
+      <span class="at-inspector ${cls}">${icon} ${o.inspector}</span>
+      <span><span class="at-addr">${o.address}</span>${o.city ? '<br><span style="color:var(--t4);font-size:11px">' + o.city + '</span>' : ''}<br><span class="at-detail orange">${dateStr} · ${o.pmtStatus} · ${fmtMoney(o.total)}</span></span>
+      <span class="at-detail orange">${o.daysOverdue}d</span>
+    </div>`;
+  });
+  tipEl.innerHTML = tipHtml;
+}
+
+function renderTable(){
+  document.getElementById('monthLabel').textContent=getMonthLabel();
+  // Check for overdue radon tests and unpaid inspections
+  checkRadonOverdue();
+  checkUnpaidOverdue();
+  // Rebuild city filter options
+  buildFilterDropdown('filterPaid', paidOptions, 'All Payments');
+  buildFilterDropdown('filterCity', getCityOptions(), 'All Cities');
+  buildFilterDropdown('filterInspector', inspectorOptions, 'All Inspectors');
+
+  const visible=getVisible();const withAddr=visible.filter(i=>i.address);
+  const totalRev=withAddr.reduce((s,i)=>s+(i.total||0),0);
+  const totalComm=withAddr.reduce((s,i)=>s+calcCommission(i),0);
+  const unpaidStatuses=['','Unpaid','Submitted HG','Submitted SQ','No','Awaiting Closing'];
+  const unpaid=withAddr.filter(i=>unpaidStatuses.includes(i.pmtStatus)).reduce((s,i)=>s+(i.total||0),0);
+  const count=withAddr.length;
+
+  document.getElementById('sCount').textContent=count;
+  document.getElementById('sRevenue').textContent=fmtMoney(totalRev)||'$0';
+  document.getElementById('sUnpaid').textContent=fmtMoney(unpaid)||'$0';
+  document.getElementById('sTotalComm').textContent=fmtMoney(totalComm)||'$0';
+
+  const bI=withAddr.filter(i=>i.inspector==='Brett'),kI=withAddr.filter(i=>i.inspector==='Kerry');
+  document.getElementById('brettCount').textContent=bI.length;
+  document.getElementById('brettIncome').textContent=fmtMoney(bI.reduce((s,i)=>s+(i.total||0),0))||'$0';
+  document.getElementById('brettComm').textContent=fmtMoney(bI.reduce((s,i)=>s+calcCommission(i),0))||'$0';
+  document.getElementById('brettUnpaid').textContent=fmtMoney(bI.filter(i=>i.paid==='No').reduce((s,i)=>s+calcCommission(i),0))||'$0';
+  document.getElementById('kerryCount').textContent=kI.length;
+  document.getElementById('kerryIncome').textContent=fmtMoney(kI.reduce((s,i)=>s+(i.total||0),0))||'$0';
+  document.getElementById('kerryComm').textContent=fmtMoney(kI.reduce((s,i)=>s+calcCommission(i),0))||'$0';
+  document.getElementById('kerryUnpaid').textContent=fmtMoney(kI.filter(i=>i.paid==='No').reduce((s,i)=>s+calcCommission(i),0))||'$0';
+
+  const list=document.getElementById('inspList');
+  if(visible.length===0){list.innerHTML=`<div class="empty-state"><div class="empty-state-icon">📋</div><h3>No inspections for ${getMonthLabel()}</h3><p>${isSignedIn?'Click Sync to pull from calendar':'Connect your Google Calendar to get started'}</p></div>`;return;}
+
+  let html='';
+  visible.forEach((i,idx)=>{
+    const dt=new Date(i.date+'T12:00:00');
+    const day=dt.getDate();const mon=dt.toLocaleDateString('en-US',{month:'short'});
+    const wkday=dt.toLocaleDateString('en-US',{weekday:'short'});
+    const inspTag=i.inspector==='Kerry'?'<span class="tag tag-kerry">Kerry</span>':'<span class="tag tag-brett">Brett</span>';
+    const pmtTag=i.paid==='Yes'?`<span class="tag ${pmtTagClass(i.pmtStatus)}">${i.pmtStatus||'Paid'}</span>`:'<span class="tag tag-unpaid">Unpaid</span>';
+
+    const unpaidStatuses=['Unpaid','Submitted HG','Submitted SQ','Awaiting Closing','No'];
+    const isUnpaid=unpaidStatuses.includes(i.pmtStatus);
+
+    html+=`<div class="anim" style="animation-delay:${idx*30}ms">
+      <div class="insp-wrap" id="insp-${i.id}" onclick="toggleDetail(event, this)">
+      <div class="insp-card${isUnpaid?' unpaid-highlight':''}">
+        <div class="date-block"><div class="date-mon">${mon}</div><div class="date-day">${day}</div><div class="date-weekday">${wkday}</div></div>
+        <div><div class="ed insp-addr" onclick="startEdit(this,${i.id},'address')">${i.address||'<span class="ph">Enter address</span>'}</div><div class="ed insp-city" onclick="startEdit(this,${i.id},'city')">${i.city||'<span class="ph">City</span>'}</div></div>
+        <div><div class="ed insp-client" onclick="startEdit(this,${i.id},'client')">${i.client||'<span class="ph">Client</span>'}</div><div class="ed insp-agent" onclick="startEdit(this,${i.id},'agent')">${i.agent?'Agent: '+i.agent:'<span class="ph">Agent</span>'}</div></div>
+        <div><div class="insp-fee">${i.total?(i.taxable==='No'?fmtMoney(preTax(i.total)):fmtMoney(i.total)):'$0'}</div><div class="insp-fee-label">${i.taxable==='No'?'Total (pre-tax)':'Total'}</div></div>
+        <div><div class="insp-comm">${fmtMoney(calcCommission(i))||'$0'}</div><div class="insp-fee-label">Commission</div></div>
+        ${makeCardSel(i.id,'inspector',i.inspector,[{value:'Brett',label:'🔴 Brett'},{value:'Kerry',label:'🔵 Kerry'}],'Inspector')}
+        ${makeCardSel(i.id,'taxable',i.taxable,[{value:'',label:'—'},{value:'Yes',label:'Taxable'},{value:'No',label:'No'}],'Tax Status')}
+        ${makeCardSel(i.id,'pmtStatus',i.pmtStatus,[{value:'Unpaid',label:'Unpaid'},{value:'Submitted HG',label:'Submitted HG'},{value:'Submitted SQ',label:'Submitted SQ'},{value:'Awaiting Closing',label:'Awaiting Closing'},{value:'No',label:'No'},{value:'Paid HG',label:'Paid HG'},{value:'Paid SQ',label:'Paid SQ'},{value:'Venmo',label:'Venmo'},{value:'Zelle',label:'Zelle'},{value:'Cash',label:'Cash'},{value:'Check',label:'Check'}],'Payment Status')}
+        ${makeCardSel(i.id,'paid',i.paid,[{value:'',label:'—'},{value:'No',label:'Unpaid'},{value:'Yes',label:'Paid'}],'Commission')}
+        <div><button class="del-btn" onclick="deleteRow(${i.id})">×</button></div>
+      </div>
+      <div class="detail-row" id="detail-${i.id}">
+        ${i.inspFee?`<div class="detail-field"><label>Insp Fee${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'inspFee')">${i.taxable==='No'?'$'+Math.round(preTax(parseMoney(i.inspFee))):i.inspFee}</div></div>`:''}
+        ${parseMoney(i.radonFee)>0?`<div class="detail-field"><label>Radon Fee${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'radonFee')">${i.taxable==='No'?'$'+Math.round(preTax(parseMoney(i.radonFee))):i.radonFee}</div></div>`:''}
+        ${parseMoney(i.waterFee)>0?`<div class="detail-field"><label>Water Fee${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'waterFee')">${i.taxable==='No'?'$'+Math.round(preTax(parseMoney(i.waterFee))):i.waterFee}</div></div>`:''}
+        ${parseMoney(i.mileage)>0?`<div class="detail-field"><label>Mileage${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'mileage')">${i.taxable==='No'?'$'+Math.round(preTax(parseMoney(i.mileage))):i.mileage}</div></div>`:''}
+        ${parseMoney(i.discount)!==0?`<div class="detail-field"><label>Discount${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'discount')">${i.taxable==='No'?'-$'+Math.round(Math.abs(preTax(parseMoney(i.discount)))):i.discount}${i.discountReason?' ('+i.discountReason+')':''}</div></div>`:''}
+        <div class="detail-field"><label>Year</label><div class="ed" onclick="startEdit(this,${i.id},'yearBuilt')">${i.yearBuilt||'<span class="ph">—</span>'}</div></div>
+        <div class="detail-field"><label>SQFT</label><div class="ed" onclick="startEdit(this,${i.id},'sqft')">${i.sqft||'<span class="ph">—</span>'}</div></div>
+        ${parseMoney(i.radonFee)>0?`<div class="detail-field"><label>Radon</label>${makeSel(i.id,'radon',i.radon,[{value:'',label:'—'},{value:'No',label:'No'},{value:'Yes',label:'Yes'},{value:'Complete',label:'Complete'}])}</div>
+        <div class="detail-field"><label>Level</label><div class="ed" onclick="startEdit(this,${i.id},'level')">${i.level||'<span class="ph">—</span>'}</div></div>`:''}
+        ${i.pmtStatus==='Awaiting Closing'?`<div class="detail-field"><label>Closing Date</label><div class="ed" onclick="startEdit(this,${i.id},'closingDate')">${i.closingDate||'<span class="ph">Enter date</span>'}</div></div>`:''}
+        <div class="detail-field detail-notes"><label>Notes</label><textarea placeholder="Add inspection notes..." onblur="updateNotes(${i.id},this.value)">${i.notes||''}</textarea></div>
+      </div>
+      </div>
+    </div>`;
+  });
+  list.innerHTML=html;
+  // Re-apply expand/collapse all state
+  if (document.getElementById('expandAllCb')?.checked) {
+    document.querySelectorAll('.detail-row').forEach(d => d.classList.add('expanded'));
+  }
+  if (collapseAllMode) {
+    document.querySelectorAll('.insp-wrap').forEach(w => w.classList.add('no-hover'));
+  }
+}
+
+// ─── TAB SWITCHING ───
+let currentTab = 'inspections';
+let metricsYear = new Date().getFullYear();
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('inspectionsPage').style.display = tab === 'inspections' ? 'flex' : 'none';
+  document.getElementById('metricsPage').style.display = tab === 'metrics' ? 'flex' : 'none';
+  document.querySelectorAll('.side-nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById(tab === 'inspections' ? 'navInspections' : 'navMetrics').classList.add('active');
+  if (tab === 'metrics') renderMetrics();
+}
+
+function changeMetricsYear(d) { metricsYear += d; renderMetrics(); }
+
+function toggleSalesTaxPaid(key) {
+  salesTaxPaid[key] = !salesTaxPaid[key];
+  renderMetrics();scheduleSave();
+}
+function toggleMidcontPaid(key) {
+  midcontPaid[key] = !midcontPaid[key];
+  renderMetrics();scheduleSave();
+}
+
+function fmtM2(v) { return '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtMC(v, cls) { if(!v || v===0) return `<span class="m-zero">—</span>`; return `<span class="${cls||''}">${fmtM2(v)}</span>`; }
+function fmtNC(v) { if(!v || v===0) return `<span class="m-zero">—</span>`; return v; }
+
+function renderMetrics() {
+  document.getElementById('metricsYearLabel').textContent = metricsYear;
+  const yr = metricsYear;
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const shortYr = String(yr).slice(2);
+
+  // Get all inspections for this year
+  const yearInsps = inspections.filter(i => {
+    const d = new Date(i.date + 'T12:00:00');
+    return d.getFullYear() === yr && i.address;
+  });
+
+  // Build monthly data
+  const monthData = [];
+  for (let m = 0; m < 12; m++) {
+    const mi = yearInsps.filter(i => new Date(i.date + 'T12:00:00').getMonth() === m);
+    const taxable = mi.filter(i => i.taxable === 'Yes');
+    const nontax = mi.filter(i => i.taxable === 'No');
+    // Taxable = full amount collected (includes tax)
+    const taxTotal = taxable.reduce((s, i) => s + (i.total || 0), 0);
+    // Non-taxable = cash, pre-tax since tax was never collected
+    const nontaxTotal = nontax.reduce((s, i) => s + Math.round(preTax(i.total || 0)), 0);
+    // Total = all inspections regardless of tax status
+    const monthTotal = mi.reduce((s, i) => s + (i.total || 0), 0);
+    // Sales tax collected from taxable inspections only
+    const salesTax = taxable.reduce((s, i) => s + ((i.total || 0) * (6.2 / 106.2)), 0);
+
+    // Per inspector
+    const inspData = {};
+    ['Brett', 'Kerry'].forEach(name => {
+      const pi = mi.filter(i => i.inspector === name);
+      const piTax = pi.filter(i => i.taxable === 'Yes');
+      const piNon = pi.filter(i => i.taxable === 'No');
+      const piTaxIncome = piTax.reduce((s, i) => s + (i.total || 0), 0);
+      const piCashIncome = piNon.reduce((s, i) => s + Math.round(preTax(i.total || 0)), 0);
+      // Total = all inspections (full amount)
+      const piTotal = pi.reduce((s, i) => s + (i.total || 0), 0);
+      const piRadon = pi.reduce((s, i) => s + parseMoney(i.radonFee), 0);
+      const piWater = pi.reduce((s, i) => s + parseMoney(i.waterFee), 0);
+      const piMileage = pi.reduce((s, i) => s + parseMoney(i.mileage), 0);
+      const piDiscount = pi.reduce((s, i) => s + parseMoney(i.discount), 0);
+      const piCommEarned = pi.reduce((s, i) => s + calcCommission(i), 0);
+      const piCommNP = pi.filter(i => i.paid === 'No').reduce((s, i) => s + calcCommission(i), 0);
+      inspData[name] = { count: pi.length, taxable: piTaxIncome, cash: piCashIncome, total: piTotal, radon: piRadon, water: piWater, mileage: piMileage, discount: piDiscount, commEarned: piCommEarned, commNP: piCommNP };
+    });
+
+    // Water tests: revenue collected, $50 commission to inspector, net due to Midcontinent
+    const waterInsps = mi.filter(i => parseMoney(i.waterFee) > 0);
+    const waterTests = waterInsps.length;
+    const waterRevenue = waterInsps.reduce((s, i) => s + parseMoney(i.waterFee), 0);
+    const waterCommPaid = waterTests * 50;
+    const waterDueMidcont = waterRevenue - waterCommPaid;
+
+    monthData.push({ label: months[m] + ' ' + shortYr, count: mi.length, taxable: taxTotal, nontax: nontaxTotal, total: monthTotal, salesTax, waterTests, waterRevenue, waterCommPaid, waterDueMidcont, inspData });
+  }
+
+  // Build quarter sums
+  function sumRange(start, end) {
+    const slice = monthData.slice(start, end);
+    const r = { count: 0, taxable: 0, nontax: 0, total: 0, salesTax: 0, waterTests: 0, waterRevenue: 0, waterCommPaid: 0, waterDueMidcont: 0, inspData: {} };
+    ['Brett', 'Kerry'].forEach(n => { r.inspData[n] = { count: 0, taxable: 0, cash: 0, total: 0, radon: 0, water: 0, mileage: 0, discount: 0, commEarned: 0, commNP: 0 }; });
+    slice.forEach(m => {
+      r.count += m.count; r.taxable += m.taxable; r.nontax += m.nontax; r.total += m.total; r.salesTax += m.salesTax; r.waterTests += m.waterTests; r.waterRevenue += m.waterRevenue; r.waterCommPaid += m.waterCommPaid; r.waterDueMidcont += m.waterDueMidcont;
+      ['Brett', 'Kerry'].forEach(n => { const d = m.inspData[n]; const rd = r.inspData[n]; Object.keys(rd).forEach(k => rd[k] += d[k]); });
+    });
+    return r;
+  }
+
+  const q = [sumRange(0,3), sumRange(3,6), sumRange(6,9), sumRange(9,12)];
+  const yearTotal = sumRange(0, 12);
+
+  // ─── COMPANY OVERVIEW ───
+  let compHtml = `<div class="m-summary">
+    <div class="m-summary-card"><div class="m-summary-label">Total Inspections</div><div class="m-summary-val" style="color:var(--accent)">${yearTotal.count}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Taxable Revenue</div><div class="m-summary-val" style="color:var(--green)">${fmtM2(yearTotal.taxable)}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Non-Taxable</div><div class="m-summary-val" style="color:var(--t1)">${fmtM2(yearTotal.nontax)}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Total Revenue</div><div class="m-summary-val" style="color:var(--green)">${fmtM2(yearTotal.total)}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Water Tests</div><div class="m-summary-val" style="color:var(--accent)">${yearTotal.waterTests}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Due Midcontinent</div><div class="m-summary-val" style="color:var(--orange)">${fmtM2(yearTotal.waterDueMidcont)}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Sales Tax</div><div class="m-summary-val" style="color:var(--orange)">${fmtM2(yearTotal.salesTax)}</div></div>
+  </div>`;
+
+  compHtml += `<table class="m-tbl"><thead><tr><th>Month</th><th>Inspections</th><th>Monthly Totals</th><th>Taxable</th><th>Non-Taxable</th><th>Water Tests</th><th>Due Midcont.</th><th>Midcont. Paid</th><th>Sales Tax</th><th>Sales Tax Paid</th></tr></thead><tbody>`;
+
+  for (let qi = 0; qi < 4; qi++) {
+    const start = qi * 3;
+    for (let mi = start; mi < start + 3; mi++) {
+      const d = monthData[mi];
+      const hasData = d.count > 0;
+      const mkey = yr + '-' + String(mi+1).padStart(2,'0');
+      const mpaid = midcontPaid[mkey];
+      const midcClass = mpaid ? 'm-money-green' : 'm-money-orange';
+      compHtml += `<tr class="${hasData?'has-data':'no-data'}"><td>${d.label}</td><td>${fmtNC(d.count)}</td><td>${fmtMC(d.total,'m-money-green')}</td><td>${fmtMC(d.taxable,'m-money-green')}</td><td>${fmtMC(d.nontax)}</td><td>${fmtNC(d.waterTests)}</td><td>${fmtMC(d.waterDueMidcont,midcClass)}</td><td>${hasData&&d.waterTests?`<button class="m-check ${mpaid?'m-check-yes':'m-check-no'}" onclick="toggleMidcontPaid('${mkey}')">${mpaid?'✓ Paid':'Not Paid'}</button>`:''}</td><td>${fmtMC(d.salesTax,'m-money-orange')}</td><td></td></tr>`;
+    }
+    const qkey = yr + '-Q' + (qi + 1);
+    const qpaid = salesTaxPaid[qkey];
+    const stClass = qpaid ? 'm-money-green' : 'm-money-orange';
+    compHtml += `<tr class="q-row"><td>Q${qi + 1}</td><td>${fmtNC(q[qi].count)}</td><td>${fmtMC(q[qi].total,'m-money-green')}</td><td>${fmtMC(q[qi].taxable,'m-money-green')}</td><td>${fmtMC(q[qi].nontax)}</td><td>${fmtNC(q[qi].waterTests)}</td><td>${fmtMC(q[qi].waterDueMidcont,'m-money-orange')}</td><td></td><td>${fmtMC(q[qi].salesTax,stClass)}</td><td><button class="m-check ${qpaid ? 'm-check-yes' : 'm-check-no'}" onclick="toggleSalesTaxPaid('${qkey}')">${qpaid ? '✓ Paid' : 'Not Paid'}</button></td></tr>`;
+    if (qi < 3) compHtml += `<tr class="gap-row"><td colspan="10"></td></tr>`;
+  }
+  compHtml += `<tr class="gap-row"><td colspan="10"></td></tr>`;
+  compHtml += `<tr class="yr-row"><td>${yr} Total</td><td>${yearTotal.count}</td><td class="m-money-green">${fmtM2(yearTotal.total)}</td><td class="m-money-green">${fmtM2(yearTotal.taxable)}</td><td>${fmtM2(yearTotal.nontax)}</td><td>${yearTotal.waterTests}</td><td class="m-money-orange">${fmtM2(yearTotal.waterDueMidcont)}</td><td></td><td class="m-money-orange">${fmtM2(yearTotal.salesTax)}</td><td></td></tr>`;
+  compHtml += `</tbody></table>`;
+
+  // ─── INSPECTOR TABLE ───
+  function inspTable(name, color) {
+    const yd = yearTotal.inspData[name];
+    // Summary cards for this inspector
+    let h = `<div class="m-summary">
+      <div class="m-summary-card"><div class="m-summary-label">Inspections</div><div class="m-summary-val" style="color:${color}">${yd.count}</div></div>
+      <div class="m-summary-card"><div class="m-summary-label">Total Revenue</div><div class="m-summary-val" style="color:var(--green)">${fmtM2(yd.total)}</div></div>
+      <div class="m-summary-card"><div class="m-summary-label">Commission Earned</div><div class="m-summary-val" style="color:var(--purple)">${fmtM2(yd.commEarned)}</div></div>
+      <div class="m-summary-card"><div class="m-summary-label">Commission Unpaid</div><div class="m-summary-val" style="color:var(--orange)">${fmtM2(yd.commNP)}</div></div>
+    </div>`;
+
+    h += `<table class="m-tbl"><thead><tr><th>Month</th><th>Inspections</th><th>Total</th><th>Taxable</th><th>Cash</th><th>Radon</th><th>Water</th><th>Mileage</th><th>Discount</th><th>Comm. Earned</th><th>Comm. NP</th></tr></thead><tbody>`;
+    for (let qi = 0; qi < 4; qi++) {
+      const start = qi * 3;
+      for (let mi = start; mi < start + 3; mi++) {
+        const d = monthData[mi].inspData[name];
+        const hasData = d.count > 0;
+        h += `<tr class="${hasData?'has-data':'no-data'}"><td>${monthData[mi].label}</td><td>${fmtNC(d.count)}</td><td>${fmtMC(d.total,'m-money-green')}</td><td>${fmtMC(d.taxable,'m-money-green')}</td><td>${fmtMC(d.cash)}</td><td>${fmtMC(d.radon)}</td><td>${fmtMC(d.water)}</td><td>${fmtMC(d.mileage)}</td><td>${fmtMC(d.discount,'m-money-red')}</td><td>${fmtMC(d.commEarned,'m-money-purple')}</td><td>${fmtMC(d.commNP,'m-money-orange')}</td></tr>`;
+      }
+      const qd = q[qi].inspData[name];
+      h += `<tr class="q-row"><td>Q${qi + 1}</td><td>${fmtNC(qd.count)}</td><td>${fmtMC(qd.total,'m-money-green')}</td><td>${fmtMC(qd.taxable,'m-money-green')}</td><td>${fmtMC(qd.cash)}</td><td>${fmtMC(qd.radon)}</td><td>${fmtMC(qd.water)}</td><td>${fmtMC(qd.mileage)}</td><td>${fmtMC(qd.discount,'m-money-red')}</td><td>${fmtMC(qd.commEarned,'m-money-purple')}</td><td>${fmtMC(qd.commNP,'m-money-orange')}</td></tr>`;
+      if (qi < 3) h += `<tr class="gap-row"><td colspan="11"></td></tr>`;
+    }
+    h += `<tr class="gap-row"><td colspan="11"></td></tr>`;
+    h += `<tr class="yr-row"><td>Total</td><td>${yd.count}</td><td class="m-money-green">${fmtM2(yd.total)}</td><td class="m-money-green">${fmtM2(yd.taxable)}</td><td>${fmtM2(yd.cash)}</td><td>${fmtM2(yd.radon)}</td><td>${fmtM2(yd.water)}</td><td>${fmtM2(yd.mileage)}</td><td class="m-money-red">${fmtM2(yd.discount)}</td><td class="m-money-purple">${fmtM2(yd.commEarned)}</td><td class="m-money-orange">${fmtM2(yd.commNP)}</td></tr>`;
+    h += `</tbody></table>`;
+    return h;
+  }
+
+  // Assemble
+  let html = `
+    <div class="m-section">
+      <div class="m-section-header"><div class="m-section-dot" style="background:var(--accent)"></div><h3>Company Overview — ${yr}</h3></div>
+      ${compHtml}
+    </div>
+    <div class="m-section">
+      <div class="m-section-header"><div class="m-section-dot" style="background:#EF4444"></div><h3>Brett — ${yr}</h3></div>
+      ${inspTable('Brett', '#EF4444')}
+    </div>
+    <div class="m-section">
+      <div class="m-section-header"><div class="m-section-dot" style="background:#3B82F6"></div><h3>Kerry — ${yr}</h3></div>
+      ${inspTable('Kerry', '#3B82F6')}
+    </div>`;
+
+  document.getElementById('metricsContent').innerHTML = html;
+}
+
+// Load saved data from localStorage first, then try Google API
+loadLocal();
+initGoogleAPI();
+renderTable();
+
+// ─── MOBILE SIDEBAR ───
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sideOverlay').classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sideOverlay').classList.remove('open');
+}
+// Close sidebar when nav link clicked on mobile
+document.querySelectorAll('.side-nav a').forEach(a => {
+  a.addEventListener('click', () => { if (window.innerWidth <= 768) closeSidebar(); });
+});
+</script>
+</body>
+</html>
