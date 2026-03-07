@@ -680,7 +680,7 @@ function initGoogleAPI(){
   document.body.appendChild(gis);
 }
 
-function handleSignIn(){if(!hasCredentials()){alert("Add your Google credentials in the HTML file first.\n\nOpen in Notepad, find CLIENT_ID and API_KEY, paste your keys.");return;}showLoading('Signing in...');tokenClient.requestAccessToken({prompt:'consent'});}
+function handleSignIn(prompt='consent'){if(!hasCredentials()){alert("Add your Google credentials in the HTML file first.\n\nOpen in Notepad, find CLIENT_ID and API_KEY, paste your keys.");return;}showLoading('Signing in...');tokenClient.requestAccessToken({prompt});}
 
 function handleLoginGate(){
   if(!gapiReady||!gisReady){
@@ -708,8 +708,9 @@ function handleLoginGate(){
         if (ALLOWED_EMAILS.includes(email)) {
           loginGatePassed = true;
           document.getElementById('loginGate').style.display = 'none';
-          // Revoke this temporary token — the real sign-in happens via Sync
+          // Revoke temporary token then auto-trigger full sign-in (calendar/sheets/gmail)
           google.accounts.oauth2.revoke(resp.access_token);
+          handleSignIn('');
         } else {
           document.getElementById('loginError').textContent = 'Access denied. This account (' + email + ') is not authorized.';
           document.getElementById('loginError').style.display = 'block';
