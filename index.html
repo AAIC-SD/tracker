@@ -383,6 +383,28 @@ body { font-family: 'Outfit', system-ui, sans-serif; background: var(--bg); colo
   .insp-card { padding: 12px; }
   .m-summary { grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; }
 }
+
+/* --- ADD INSPECTION MODAL --- */
+.modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px; }
+.modal-box { background:var(--card);border:1px solid var(--border-light);border-radius:16px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.6); }
+.modal-header { padding:20px 24px 0;display:flex;align-items:center;justify-content:space-between; }
+.modal-header h2 { font-size:18px;font-weight:800;color:var(--t1); }
+.modal-close { background:none;border:none;color:var(--t3);font-size:22px;cursor:pointer;padding:0 4px;line-height:1; }
+.modal-close:hover { color:var(--t1); }
+.modal-body { padding:20px 24px; }
+.modal-row { display:grid;gap:12px;margin-bottom:14px; }
+.modal-row.two { grid-template-columns:1fr 1fr; }
+.modal-row.three { grid-template-columns:1fr 1fr 1fr; }
+.modal-field label { display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--t3);margin-bottom:5px; }
+.modal-field input, .modal-field select, .modal-field textarea { width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--sidebar);color:var(--t1);font-family:inherit;font-size:13px;outline:none;transition:border-color 0.15s; }
+.modal-field input:focus, .modal-field select:focus, .modal-field textarea:focus { border-color:var(--accent); }
+.modal-field input::placeholder { color:var(--t4); }
+.modal-field select option { background:var(--card);color:var(--t1); }
+.modal-comm-preview { background:var(--sidebar);border-radius:10px;padding:14px 16px;margin:0 0 16px;display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border); }
+.modal-comm-preview .mcp-label { font-size:12px;color:var(--t3);font-weight:600; }
+.modal-comm-preview .mcp-val { font-size:22px;font-weight:800;color:var(--purple);font-family:'JetBrains Mono',monospace; }
+.modal-footer { display:flex;gap:10px;justify-content:flex-end;padding:0 24px 20px; }
+.modal-field .fee-hint { font-size:10px;color:var(--t4);margin-top:3px; }
 </style>
 </head>
 <body>
@@ -829,6 +851,14 @@ async function loadFromSheet() {
         if (row[0] === 'midcontPaid') try { midcontPaid = JSON.parse(row[1]); } catch(e) {}
       });
     }
+    // Re-add any manually-entered inspections (no googleId) that weren't in the sheet yet
+    // This prevents data loss when a save to Google Sheets failed or hadn't completed
+    const sheetIds = new Set(inspections.map(i => i.id));
+    Object.values(localById).forEach(local => {
+      if (!local.googleId && !sheetIds.has(local.id) && local.address) {
+        inspections.push(local);
+      }
+    });
     renderTable();
     saveLocal(); // persist merged data to localStorage
     // Immediately re-save to sheet to sync any locally-merged data
@@ -1220,11 +1250,12 @@ function parseCalendarEvent(ev){
 function parseMoney(v){if(!v)return 0;return parseFloat(String(v).replace(/[^0-9.-]/g,''))||0;}
 function preTax(total){return total*(100/106.2);}
 function calcCommission(i){
-  // Commission = pre-tax(inspFee + radonFee + mileage + discount) + flat $50 if water test
-  // inspFee from HomeGauge always includes tax, so always strip it
+  // Commission: NEVER add tax. Only strip tax when taxable=Yes (HG fees include sales tax).
+  // Cash/non-taxable fees are already pre-tax.
   const base = parseMoney(i.inspFee) + parseMoney(i.radonFee) + parseMoney(i.mileage) + parseMoney(i.discount);
   const water = parseMoney(i.waterFee) > 0 ? 50 : 0;
-  return Math.round(preTax(base)) + water;
+  const commBase = i.taxable === 'Yes' ? Math.round(preTax(base)) : Math.round(base);
+  return commBase + water;
 }
 function fmtMoney(v){if(!v||v===0)return'';return'$'+Number(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function showLoading(m){document.getElementById('statusLoading').style.display='flex';document.getElementById('loadingText').textContent=m;}
@@ -1339,7 +1370,74 @@ function addService(id, field, defaultVal) {
   }
 }
 
-function addInspection(){const day=Math.min(new Date().getDate(),28);const ds=`${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;inspections.push({id:nextId++,googleId:null,date:ds,address:'',city:'',radon:'',level:'',discount:'',discountReason:'',inspFee:'',radonFee:'',waterFee:'',mileage:'',total:0,taxable:'',inspector:'Brett',commission:0,paid:'',agent:'',client:'',pmtStatus:'Unpaid',yearBuilt:'',sqft:'',closingDate:'',notes:''});renderTable();scheduleSave();}
+function addInspection(){
+  const today = new Date();
+  let defaultDate;
+  if (today.getFullYear() === currentYear && today.getMonth() === currentMonth) {
+    defaultDate = today.toISOString().split('T')[0];
+  } else {
+    defaultDate = currentYear + '-' + String(currentMonth+1).padStart(2,'0') + '-01';
+  }
+  document.getElementById('mi_date').value = defaultDate;
+  document.getElementById('mi_inspector').value = 'Brett';
+  document.getElementById('mi_address').value = '';
+  document.getElementById('mi_city').value = '';
+  document.getElementById('mi_client').value = '';
+  document.getElementById('mi_agent').value = '';
+  document.getElementById('mi_taxable').value = '';
+  document.getElementById('mi_pmtStatus').value = 'Unpaid';
+  document.getElementById('mi_inspFee').value = '';
+  document.getElementById('mi_radonFee').value = '';
+  document.getElementById('mi_waterFee').value = '';
+  document.getElementById('mi_mileage').value = '';
+  document.getElementById('mi_discount').value = '';
+  document.getElementById('mi_notes').value = '';
+  updateModalCommPreview();
+  document.getElementById('addInspModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('mi_address').focus(), 100);
+}
+
+function closeAddModal(){
+  document.getElementById('addInspModal').style.display = 'none';
+}
+
+function updateModalCommPreview(){
+  const taxable = document.getElementById('mi_taxable').value;
+  const inspFee = parseFloat(document.getElementById('mi_inspFee').value) || 0;
+  const radonFee = parseFloat(document.getElementById('mi_radonFee').value) || 0;
+  const waterFee = parseFloat(document.getElementById('mi_waterFee').value) || 0;
+  const mileage = parseFloat(document.getElementById('mi_mileage').value) || 0;
+  const discount = parseFloat(document.getElementById('mi_discount').value) || 0;
+  const base = inspFee + radonFee + mileage - discount;
+  const water = waterFee > 0 ? 50 : 0;
+  const commBase = taxable === 'Yes' ? Math.round(preTax(base)) : Math.round(base);
+  const comm = commBase + water;
+  const hint = document.getElementById('mi_fee_hint');
+  const subhint = document.getElementById('mi_fee_subhint');
+  if (taxable === 'Yes') {
+    hint.textContent = '(incl. tax)';
+    subhint.textContent = 'HomeGauge/card � tax stripped from commission calc';
+  } else if (taxable === 'No') {
+    hint.textContent = '(pre-tax)';
+    subhint.textContent = 'Cash � commission = exact amount entered, no tax adjustment';
+  } else {
+    hint.textContent = '';
+    subhint.textContent = '';
+  }
+  document.getElementById('mi_comm_preview').textContent = comm > 0 ? fmtMoney(comm) : '�';
+}
+
+function submitAddModal(){
+  const date = document.getElementById('mi_date').value;
+  const address = document.getElementById('mi_address').value.trim();
+  if (!date) { alert('Please enter a date.'); return; }
+  const taxable = document.getElementById('mi_taxable').value;
+  const inspFeeRaw = parseFloat(document.getElementById('mi_inspFee').value) || 0;
+  const radonFeeRaw = parseFloat(document.getElementById('mi_radonFee').value) || 0;
+  const waterFeeRaw = parseFloat(document.getElementById('mi_waterFee').value) || 0;
+  const mileageRaw = parseFloat(document.getElementById('mi_mileage').value) || 0;
+  const discountRaw = parseFloat(document.getElementById('mi_discount').value) || 0;
+  const fmt = (v) => v > 0 ? ('-${String(currentMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;inspections.push({id:nextId++,googleId:null,date:ds,address:'',city:'',radon:'',level:'',discount:'',discountReason:'',inspFee:'',radonFee:'',waterFee:'',mileage:'',total:0,taxable:'',inspector:'Brett',commission:0,paid:'',agent:'',client:'',pmtStatus:'Unpaid',yearBuilt:'',sqft:'',closingDate:'',notes:''});renderTable();scheduleSave();}
 
 function updateField(id,field,value){const i=inspections.find(x=>x.id===id);if(!i)return;i[field]=value;if(['inspFee','radonFee','waterFee','mileage','discount'].includes(field)){i.total=parseMoney(i.inspFee)+parseMoney(i.discount)+parseMoney(i.radonFee)+parseMoney(i.waterFee)+parseMoney(i.mileage);i.commission=calcCommission(i);}if(field==='pmtStatus'&&value==='Cash'){i.paid='Yes';}renderTable();scheduleSave();}
 
@@ -2058,5 +2156,1722 @@ document.querySelectorAll('.side-nav a').forEach(a => {
   a.addEventListener('click', () => { if (window.innerWidth <= 768) closeSidebar(); });
 });
 </script>
+
+<!-- ADD INSPECTION MODAL -->
+<div id="addInspModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAddModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>?? Add Inspection</h2>
+      <button class="modal-close" onclick="closeAddModal()">�</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-row two">
+        <div class="modal-field"><label>Date</label><input type="date" id="mi_date"></div>
+        <div class="modal-field"><label>Inspector</label>
+          <select id="mi_inspector">
+            <option value="Brett">?? Brett</option>
+            <option value="Kerry">?? Kerry</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Address</label><input type="text" id="mi_address" placeholder="123 Main St"></div>
+      </div>
+      <div class="modal-row two">
+        <div class="modal-field"><label>City</label><input type="text" id="mi_city" placeholder="Rapid City"></div>
+        <div class="modal-field"><label>Client Name</label><input type="text" id="mi_client" placeholder="John Smith"></div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Buyer's Agent</label><input type="text" id="mi_agent" placeholder="Agent name (optional)"></div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:4px 0 16px;">
+      <div class="modal-row two">
+        <div class="modal-field"><label>Taxable</label>
+          <select id="mi_taxable" onchange="updateModalCommPreview()">
+            <option value="">� Select �</option>
+            <option value="Yes">Yes (HomeGauge / card)</option>
+            <option value="No">No (Cash)</option>
+          </select>
+        </div>
+        <div class="modal-field"><label>Payment Status</label>
+          <select id="mi_pmtStatus">
+            <option value="Unpaid">Unpaid</option>
+            <option value="Submitted HG">Submitted HG</option>
+            <option value="Submitted SQ">Submitted SQ</option>
+            <option value="Paid HG">Paid HG</option>
+            <option value="Paid SQ">Paid SQ</option>
+            <option value="Venmo">Venmo</option>
+            <option value="Zelle">Zelle</option>
+            <option value="Cash">Cash</option>
+            <option value="Check">Check</option>
+            <option value="Awaiting Closing">Awaiting Closing</option>
+            <option value="No">No</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-row three">
+        <div class="modal-field">
+          <label>Insp Fee <span id="mi_fee_hint" style="color:var(--t4);font-weight:400;text-transform:none"></span></label>
+          <input type="number" id="mi_inspFee" placeholder="450" step="0.01" oninput="updateModalCommPreview()">
+          <div class="fee-hint" id="mi_fee_subhint"></div>
+        </div>
+        <div class="modal-field"><label>Radon Fee</label><input type="number" id="mi_radonFee" placeholder="0" step="0.01" oninput="updateModalCommPreview()"></div>
+        <div class="modal-field"><label>Water Fee</label><input type="number" id="mi_waterFee" placeholder="0" step="0.01" oninput="updateModalCommPreview()"></div>
+      </div>
+      <div class="modal-row two">
+        <div class="modal-field"><label>Mileage</label><input type="number" id="mi_mileage" placeholder="0" step="0.01" oninput="updateModalCommPreview()"></div>
+        <div class="modal-field"><label>Discount</label><input type="number" id="mi_discount" placeholder="0" step="0.01" oninput="updateModalCommPreview()"></div>
+      </div>
+      <div class="modal-comm-preview">
+        <div>
+          <div class="mcp-label">Estimated Commission</div>
+          <div style="font-size:11px;color:var(--t4);margin-top:2px" id="mi_comm_note">Tax is never applied to commission</div>
+        </div>
+        <div class="mcp-val" id="mi_comm_preview">�</div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Notes</label><textarea id="mi_notes" rows="2" placeholder="Optional notes..."></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="submitAddModal()">Add Inspection</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+ + v.toFixed(2)) : '';
+  const fmtNeg = (v) => v > 0 ? ('--${String(currentMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;inspections.push({id:nextId++,googleId:null,date:ds,address:'',city:'',radon:'',level:'',discount:'',discountReason:'',inspFee:'',radonFee:'',waterFee:'',mileage:'',total:0,taxable:'',inspector:'Brett',commission:0,paid:'',agent:'',client:'',pmtStatus:'Unpaid',yearBuilt:'',sqft:'',closingDate:'',notes:''});renderTable();scheduleSave();}
+
+function updateField(id,field,value){const i=inspections.find(x=>x.id===id);if(!i)return;i[field]=value;if(['inspFee','radonFee','waterFee','mileage','discount'].includes(field)){i.total=parseMoney(i.inspFee)+parseMoney(i.discount)+parseMoney(i.radonFee)+parseMoney(i.waterFee)+parseMoney(i.mileage);i.commission=calcCommission(i);}if(field==='pmtStatus'&&value==='Cash'){i.paid='Yes';}renderTable();scheduleSave();}
+
+function startEdit(el,id,field){const i=inspections.find(x=>x.id===id);const val=i[field]||'';el.innerHTML=`<input class="ed-input" value="${String(val).replace(/"/g,'&quot;')}" onblur="finishEdit(this,${id},'${field}')" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){this.dataset.cancel='1';this.blur();}">`;el.querySelector('input').focus();}
+function finishEdit(input,id,field){if(input.dataset.cancel){renderTable();return;}updateField(id,field,input.value);}
+function deleteRow(id){if(!confirm('Delete this inspection?'))return;inspections=inspections.filter(i=>i.id!==id);renderTable();scheduleSave();}
+function updateNotes(id,val){const i=inspections.find(x=>x.id===id);if(i){i.notes=val;scheduleSave();}}
+
+function toggleDetail(e, wrap) {
+  // Don't toggle if clicking on editable fields, selects, buttons, textareas, inputs
+  const tag = e.target.tagName;
+  if (tag === 'SELECT' || tag === 'OPTION' || tag === 'BUTTON' || tag === 'TEXTAREA' || tag === 'INPUT') return;
+  if (e.target.closest('.del-btn') || e.target.closest('select') || e.target.closest('textarea') || e.target.closest('input') || e.target.closest('.add-svc-btn') || e.target.closest('.svc-menu') || e.target.closest('.svc-anchor')) return;
+  // Don't toggle if user is editing (clicked an .ed element)
+  if (e.target.classList.contains('ed') || e.target.closest('.ed')) return;
+  // Don't close if clicking inside the detail-row content area
+  if (e.target.closest('.detail-row') && e.target.closest('.detail-field')) return;
+  const detail = wrap.querySelector('.detail-row');
+  if (detail) detail.classList.toggle('expanded');
+}
+
+function scrollToInspection(id) {
+  const el = document.getElementById('insp-' + id);
+  if (!el) return;
+  // Expand the detail row
+  const detail = el.querySelector('.detail-row');
+  if (detail) detail.classList.add('expanded');
+  // Scroll into view with highlight flash
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.style.outline = '2px solid #EF4444';
+  el.style.outlineOffset = '2px';
+  el.style.borderRadius = '12px';
+  setTimeout(() => { el.style.outline = 'none'; }, 2500);
+}
+
+let collapseAllMode = false;
+let payAllSnapshot = {}; // stores { 'Brett': [{id, prevPaid}, ...], 'Kerry': [...] }
+
+function togglePayAll(inspector, checked) {
+  if (checked) {
+    // Save current states and set all to Paid
+    const snapshot = [];
+    inspections.forEach(i => {
+      if (!i.address) return;
+      const d = new Date(i.date + 'T12:00:00');
+      if (d.getMonth() !== currentMonth || d.getFullYear() !== currentYear) return;
+      if (i.inspector !== inspector) return;
+      snapshot.push({ id: i.id, prevPaid: i.paid });
+      i.paid = 'Yes';
+    });
+    payAllSnapshot[inspector] = snapshot;
+    renderTable();
+    scheduleSave();
+  } else {
+    // Restore previous states
+    const snapshot = payAllSnapshot[inspector] || [];
+    snapshot.forEach(s => {
+      const i = inspections.find(x => x.id === s.id);
+      if (i) i.paid = s.prevPaid;
+    });
+    delete payAllSnapshot[inspector];
+    renderTable();
+    scheduleSave();
+  }
+}
+
+function toggleExpandAll() {
+  const cb = document.getElementById('expandAllCb');
+  if (cb.checked) {
+    // Uncheck collapse all
+    document.getElementById('collapseAllCb').checked = false;
+    collapseAllMode = false;
+    document.querySelectorAll('.insp-wrap').forEach(w => {
+      w.classList.remove('no-hover');
+      w.querySelector('.detail-row')?.classList.add('expanded');
+    });
+  } else {
+    document.querySelectorAll('.detail-row').forEach(d => d.classList.remove('expanded'));
+  }
+}
+
+function toggleCollapseAll() {
+  const cb = document.getElementById('collapseAllCb');
+  if (cb.checked) {
+    // Uncheck expand all
+    document.getElementById('expandAllCb').checked = false;
+    collapseAllMode = true;
+    document.querySelectorAll('.detail-row').forEach(d => d.classList.remove('expanded'));
+    document.querySelectorAll('.insp-wrap').forEach(w => w.classList.add('no-hover'));
+  } else {
+    collapseAllMode = false;
+    document.querySelectorAll('.insp-wrap').forEach(w => w.classList.remove('no-hover'));
+  }
+}
+function toggleExpand(id){expandedId=expandedId===id?null:id;renderTable();}
+
+function makeSel(id,field,value,options){return`<select class="cell-sel" onchange="updateField(${id},'${field}',this.value);renderTable();">${options.map(o=>{const v=typeof o==='object'?o.value:o;const l=typeof o==='object'?o.label:o;return`<option value="${v}" ${value===v?'selected':''}>${l}</option>`;}).join('')}</select>`;}
+
+function makeCardSel(id,field,value,options,label){
+  const unpaidVals=['Unpaid','Submitted HG','Submitted SQ','Awaiting Closing','No'];
+  const isUnpaidPmt = field==='pmtStatus' && unpaidVals.includes(value);
+  const isPaidPmt = field==='pmtStatus' && !unpaidVals.includes(value) && value;
+  // Determine if this field needs attention (blank/default)
+  let needsInput = false;
+  if (field==='taxable' && !value) needsInput = true;
+  if (field==='pmtStatus' && value==='Unpaid') needsInput = true;
+  if (field==='paid' && !value) needsInput = true;
+  const niClass = needsInput ? ' needs-input' : '';
+  const niLabel = needsInput ? ' needs-input' : '';
+  return`<div><div class="card-sel-label${niLabel}">${label}</div><select class="card-sel${isUnpaidPmt?' pmt-unpaid':''}${isPaidPmt?' pmt-paid':''}${niClass}" onchange="updateField(${id},'${field}',this.value);renderTable();">${options.map(o=>{const v=typeof o==='object'?o.value:o;const l=typeof o==='object'?o.label:o;const isOptUnpaid=field==='pmtStatus'&&unpaidVals.includes(v);const isOptPaid=field==='pmtStatus'&&!unpaidVals.includes(v)&&v;return`<option value="${v}" ${value===v?'selected':''} ${isOptUnpaid?'class="opt-unpaid"':''}${isOptPaid?'class="opt-paid"':''}>${l}</option>`;}).join('')}</select></div>`;
+}
+
+function exportCSV(){const v=getVisible();const rows=[['Date','Address','City','Radon','Level','Discount','Insp Fee','Radon Fee','Water Fee','Mileage','Total','Taxable','Inspector','Commission','Paid','Agent','Client','PMT Status','Year Built','SQFT','Notes']];v.forEach(i=>{rows.push([i.date,i.address,i.city,i.radon,i.level,i.discount,i.inspFee,i.radonFee,i.waterFee,i.mileage,fmtMoney(i.total),i.taxable,i.inspector,fmtMoney(i.commission),i.paid,i.agent,i.client,i.pmtStatus,i.yearBuilt||'',i.sqft||'',i.notes]);});const csv=rows.map(r=>r.map(c=>`"${c||''}"`).join(',')).join('\n');const blob=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`inspections-${getMonthLabel().replace(' ','-')}.csv`;a.click();}
+
+/* ── Export Map Data (geocodes ALL inspections → map-data.js) ── */
+async function exportMapData(){
+  const GKEY='AIzaSyBaXb9xr6udtu2jW8m7COjoEob9MsR4Ecs';
+  const all=inspections.filter(i=>i.address&&i.city);
+  if(!all.length){alert('No inspections with addresses found.');return;}
+  let cache={};
+  try{cache=JSON.parse(localStorage.getItem('aaic_geocache')||'{}');}catch(e){}
+  const uniqueAddrs={};
+  all.forEach(i=>{
+    const key=(i.address+', '+i.city+', SD').trim().toLowerCase();
+    if(!uniqueAddrs[key])uniqueAddrs[key]={addr:i.address+', '+i.city+', SD',inspections:[]};
+    uniqueAddrs[key].inspections.push({date:i.date,inspector:i.inspector});
+  });
+  const keys=Object.keys(uniqueAddrs);
+  const toGeocode=keys.filter(k=>!cache[k]);
+  // Progress modal
+  const modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:99999';
+  const box=document.createElement('div');
+  box.style.cssText='background:var(--bg2,#1e1e1e);border-radius:16px;padding:32px 40px;min-width:380px;text-align:center;color:var(--t1,#fff);font-family:inherit';
+  box.innerHTML=`<h3 style="margin:0 0 8px;font-size:18px">🗺️ Exporting Map Data</h3>
+    <p style="margin:0 0 16px;color:var(--t3,#999);font-size:13px">${keys.length} unique addresses · ${toGeocode.length} need geocoding · ${keys.length-toGeocode.length} cached</p>
+    <div style="background:var(--bg3,#333);border-radius:8px;height:8px;overflow:hidden;margin:0 0 12px">
+      <div id="mapExpBar" style="height:100%;background:var(--acc,#5b9);width:${toGeocode.length?0:100}%;transition:width 0.3s;border-radius:8px"></div>
+    </div>
+    <p id="mapExpStatus" style="margin:0;font-size:13px;color:var(--t2,#ccc)">${toGeocode.length?'Starting geocoding...':'All addresses cached!'}</p>
+    <button id="mapExpCancel" onclick="this.dataset.cancel='1'" style="margin-top:16px;padding:8px 20px;border-radius:8px;border:1px solid var(--brd,#444);background:none;color:var(--t2,#ccc);cursor:pointer;font-size:13px">Cancel</button>`;
+  modal.appendChild(box);document.body.appendChild(modal);
+  const bar=document.getElementById('mapExpBar');
+  const status=document.getElementById('mapExpStatus');
+  const cancelBtn=document.getElementById('mapExpCancel');
+  // Geocode missing addresses
+  let done=0,errors=0;
+  for(const k of toGeocode){
+    if(cancelBtn.dataset.cancel==='1'){modal.remove();return;}
+    try{
+      const resp=await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(uniqueAddrs[k].addr)}&key=${GKEY}`);
+      const data=await resp.json();
+      if(data.results&&data.results[0]){
+        const loc=data.results[0].geometry.location;
+        cache[k]={lat:loc.lat,lng:loc.lng};
+      }else{errors++;}
+    }catch(e){errors++;}
+    done++;
+    bar.style.width=Math.round((done/toGeocode.length)*100)+'%';
+    status.textContent=`Geocoded ${done}/${toGeocode.length}${errors?' ('+errors+' failed)':''}`;
+    if(done%10===0)await new Promise(r=>setTimeout(r,1100));
+  }
+  localStorage.setItem('aaic_geocache',JSON.stringify(cache));
+  // Build pins
+  const pins=[];
+  keys.forEach(k=>{
+    if(!cache[k])return;
+    const u=uniqueAddrs[k];
+    u.inspections.forEach(ins=>{
+      pins.push({lat:cache[k].lat,lng:cache[k].lng,d:ins.date,i:ins.inspector});
+    });
+  });
+  const js=`// AAIC Map Data — Generated ${new Date().toLocaleDateString()}\n// ${pins.length} inspections geocoded\nconst AAIC_MAP_DATA = ${JSON.stringify(pins)};\n`;
+  const blob=new Blob([js],{type:'application/javascript'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='map-data.js';
+  status.textContent=`Done! ${pins.length} pins ready. Downloading...`;
+  bar.style.width='100%';
+  cancelBtn.textContent='Close';cancelBtn.onclick=()=>modal.remove();
+  setTimeout(()=>a.click(),500);
+}
+
+// Multi-select filter state
+const filterSelections = {
+  filterPaid: [],
+  filterCity: [],
+  filterInspector: []
+};
+
+const paidOptions = ['Unpaid','Submitted HG','Submitted SQ','Awaiting Closing','No','Paid HG','Paid SQ','Venmo','Zelle','Cash','Check'];
+const inspectorOptions = ['Brett','Kerry'];
+
+function buildFilterDropdown(id, options, allLabel) {
+  const drop = document.getElementById(id + 'Drop');
+  const wasOpen = drop.classList.contains('open');
+  const sel = filterSelections[id];
+  const allSelected = sel.length === 0;
+  let h = `<div class="mf-opt mf-opt-all ${allSelected?'selected':''}" onclick="event.stopPropagation();clearFilter('${id}')"><span class="mf-check">${allSelected?'✓':''}</span>${allLabel}</div>`;
+  options.forEach(opt => {
+    const isSel = sel.includes(opt);
+    h += `<div class="mf-opt ${isSel?'selected':''}" onclick="event.stopPropagation();toggleFilterOpt('${id}','${opt.replace(/'/g,"\\'")}')"><span class="mf-check">${isSel?'✓':''}</span>${opt}</div>`;
+  });
+  drop.innerHTML = h;
+  if (wasOpen) drop.classList.add('open');
+  const label = document.getElementById(id + 'Label');
+  if (sel.length === 0) label.textContent = allLabel;
+  else if (sel.length === 1) label.textContent = sel[0];
+  else label.textContent = sel.length + ' selected';
+}
+
+function toggleMultiFilter(id) {
+  const drop = document.getElementById(id + 'Drop');
+  const display = drop.parentElement.querySelector('.mf-display');
+  const isOpen = drop.classList.contains('open');
+  // Close all others
+  document.querySelectorAll('.mf-dropdown').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.mf-display').forEach(d => d.classList.remove('active'));
+  if (!isOpen) { drop.classList.add('open'); display.classList.add('active'); }
+}
+
+function toggleFilterOpt(id, opt) {
+  const sel = filterSelections[id];
+  const idx = sel.indexOf(opt);
+  if (idx >= 0) sel.splice(idx, 1); else sel.push(opt);
+  const allLabel = id === 'filterPaid' ? 'All Payments' : id === 'filterCity' ? 'All Cities' : 'All Inspectors';
+  const options = id === 'filterPaid' ? paidOptions : id === 'filterInspector' ? inspectorOptions : getCityOptions();
+  buildFilterDropdown(id, options, allLabel);
+  renderTable();
+}
+
+function clearFilter(id) {
+  filterSelections[id] = [];
+  const allLabel = id === 'filterPaid' ? 'All Payments' : id === 'filterCity' ? 'All Cities' : 'All Inspectors';
+  const options = id === 'filterPaid' ? paidOptions : id === 'filterInspector' ? inspectorOptions : getCityOptions();
+  buildFilterDropdown(id, options, allLabel);
+  renderTable();
+}
+
+function getCityOptions() {
+  return [...new Set(inspections.map(i => i.city).filter(Boolean))].sort();
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.multi-filter')) {
+    document.querySelectorAll('.mf-dropdown').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.mf-display').forEach(d => d.classList.remove('active'));
+  }
+});
+
+function getVisible(){
+  const search=document.getElementById('searchInput').value.toLowerCase();
+  const pmtF=filterSelections.filterPaid;
+  const cityF=filterSelections.filterCity;
+  const inspF=filterSelections.filterInspector;
+  return inspections.filter(i=>{
+    const d=new Date(i.date+'T12:00:00');
+    if(d.getMonth()!==currentMonth||d.getFullYear()!==currentYear)return false;
+    if(pmtF.length>0 && !pmtF.includes(i.pmtStatus))return false;
+    if(cityF.length>0 && !cityF.includes(i.city))return false;
+    if(inspF.length>0 && !inspF.includes(i.inspector))return false;
+    if(search){const h=[i.address,i.city,i.agent,i.client,i.notes,i.inspector].join(' ').toLowerCase();if(!h.includes(search))return false;}
+    return true;
+  }).sort((a,b)=>a.date.localeCompare(b.date));
+}
+
+function pmtTagClass(s){if(!s)return'tag-unpaid';const l=s.toLowerCase();if(l==='paid hg')return'tag-paid';if(l==='submitted hg')return'tag-submitted';if(l==='submitted sq')return'tag-submitted';if(l==='paid sq')return'tag-paid-sq';if(l==='venmo')return'tag-venmo';if(l==='zelle')return'tag-zelle';if(l==='cash')return'tag-cash';if(l==='check')return'tag-paid';if(l==='awaiting closing')return'tag-awaiting';if(l==='no')return'tag-no';if(l==='unpaid')return'tag-unpaid';return'tag-paid';}
+
+function getUnpaidInspections(){
+  const unpaidS=['','Unpaid','Submitted HG','Submitted SQ','No','Awaiting Closing'];
+  return inspections.filter(i=>{
+    const d=new Date(i.date+'T12:00:00');
+    return d.getMonth()===currentMonth && d.getFullYear()===currentYear && i.address && unpaidS.includes(i.pmtStatus);
+  }).sort((a,b)=>{
+    if(a.inspector!==b.inspector)return a.inspector.localeCompare(b.inspector);
+    if(a.date!==b.date)return a.date.localeCompare(b.date);
+    return a.address.localeCompare(b.address);
+  });
+}
+
+function buildUnpaidHTML(items){
+  if(!items.length)return'<div style="font-size:12px;color:var(--t3);padding:4px">No unpaid invoices</div>';
+  let h='';
+  const grouped={Brett:[],Kerry:[]};
+  items.forEach(i=>{if(grouped[i.inspector])grouped[i.inspector].push(i);});
+  ['Brett','Kerry'].forEach(name=>{
+    const list=grouped[name];if(!list.length)return;
+    const cls=name==='Brett'?'brett':'kerry';
+    h+=`<div class="unpaid-tooltip-group"><div class="unpaid-tooltip-group-label ${cls}">🔴 ${name==='Brett'?'🔴':'🔵'} ${name}</div>`.replace('🔴 🔴','🔴').replace('🔴 🔵','🔵');
+    list.forEach(i=>{
+      const dt=new Date(i.date+'T12:00:00');
+      const dStr=(dt.getMonth()+1)+'/'+dt.getDate();
+      h+=`<div class="unpaid-tooltip-row"><span class="utp-date">${dStr}</span><span class="utp-addr">${i.address}</span><span class="utp-amt">${fmtMoney(i.total)}</span></div>`;
+    });
+    h+=`</div>`;
+  });
+  return h;
+}
+
+function showUnpaidTooltip(e){
+  const el=document.getElementById('unpaidTooltip');
+  const items=getUnpaidInspections();
+  el.innerHTML=`<div class="unpaid-tooltip-header">Unpaid Invoices — ${getMonthLabel()}</div>`+buildUnpaidHTML(items);
+  const rect=e.currentTarget.getBoundingClientRect();
+  el.style.top=(rect.bottom+8)+'px';
+  el.style.left=Math.max(10,rect.left-100)+'px';
+  el.classList.add('show');
+}
+function hideUnpaidTooltip(){document.getElementById('unpaidTooltip').classList.remove('show');}
+
+let unpaidListOpen=false;
+function toggleUnpaidList(){
+  unpaidListOpen=!unpaidListOpen;
+  const panel=document.getElementById('unpaidListPanel');
+  if(!unpaidListOpen){panel.style.display='none';return;}
+  const items=getUnpaidInspections();
+  const total=items.reduce((s,i)=>s+(i.total||0),0);
+  let h=`<div class="ulp-header"><span class="ulp-title">Revenue Outstanding — ${getMonthLabel()} (${items.length} invoices · ${fmtMoney(total)})</span><button class="ulp-close" onclick="toggleUnpaidList()">✕</button></div>`;
+  h+=`<table><thead><tr><th>Inspector</th><th>Date</th><th>Address</th><th>Client</th><th>Amount</th><th>Status</th></tr></thead><tbody>`;
+  items.forEach(i=>{
+    const dt=new Date(i.date+'T12:00:00');
+    const dStr=(dt.getMonth()+1)+'/'+dt.getDate()+'/'+dt.getFullYear();
+    const cls=i.inspector==='Brett'?'ulp-brett':'ulp-kerry';
+    h+=`<tr><td class="ulp-inspector ${cls}">${i.inspector}</td><td>${dStr}</td><td>${i.address}</td><td>${i.client||'—'}</td><td class="ulp-amt">${fmtMoney(i.total)}</td><td class="ulp-status">${i.pmtStatus||'—'}</td></tr>`;
+  });
+  h+=`</tbody></table>`;
+  panel.innerHTML=h;
+  panel.style.display='block';
+}
+
+function checkRadonOverdue() {
+  const now = new Date();
+  const overdue = [];
+  const viewYear = currentYear;
+  const viewMonth = currentMonth;
+  inspections.forEach(i => {
+    if (!i.address) return;
+    // Only check inspections in the currently viewed month
+    const inspDate = new Date(i.date + 'T12:00:00');
+    if (inspDate.getFullYear() !== viewYear || inspDate.getMonth() !== viewMonth) return;
+    // Has radon test: radonFee > 0, or radon field is Yes/Complete/truthy (but not No/empty)
+    const hasRadonFee = parseMoney(i.radonFee) > 0;
+    const radonField = (i.radon || '').toLowerCase();
+    const hasRadon = hasRadonFee || (radonField === 'yes') || (radonField === 'complete');
+    if (!hasRadon) return;
+    // Already complete — skip
+    if (radonField === 'complete') return;
+    // Level already entered — skip (check various empty states)
+    const level = (i.level || '').trim();
+    if (level && level !== '—' && level !== '-' && level !== '0') return;
+    // Check if 72 hours have passed since inspection
+    const hoursSince = (now - inspDate) / (1000 * 60 * 60);
+    if (hoursSince < 72) return;
+    // Calculate pickup time (48 hours after inspection)
+    const pickupDate = new Date(inspDate.getTime() + 48 * 60 * 60 * 1000);
+    const daysOverdue = Math.floor((hoursSince - 72) / 24);
+    overdue.push({ id: i.id, inspector: i.inspector, address: i.address, city: i.city, date: i.date, pickupDate, daysOverdue, hoursSince });
+  });
+
+  const alertEl = document.getElementById('radonAlert');
+  const textEl = document.getElementById('radonAlertText');
+  const tipEl = document.getElementById('radonAlertTooltip');
+
+  if (overdue.length === 0) {
+    alertEl.style.display = 'none';
+    return;
+  }
+
+  alertEl.style.display = 'block';
+  textEl.textContent = `Warning: ${overdue.length} radon test${overdue.length > 1 ? 's' : ''} past due`;
+
+  let tipHtml = '<div class="at-header red">☢️ Overdue Radon Tests</div>';
+  overdue.sort((a, b) => b.hoursSince - a.hoursSince);
+  overdue.forEach(o => {
+    const cls = o.inspector === 'Brett' ? 'brett' : 'kerry';
+    const icon = o.inspector === 'Brett' ? '🔴' : '🔵';
+    const pickupStr = o.pickupDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + o.pickupDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const daysText = o.daysOverdue === 0 ? 'Due today' : `${o.daysOverdue}d overdue`;
+    tipHtml += `<div class="at-row" onclick="scrollToInspection(${o.id})" style="cursor:pointer">
+      <span class="at-inspector ${cls}">${icon} ${o.inspector}</span>
+      <span><span class="at-addr">${o.address}</span>${o.city ? '<br><span style="color:var(--t4);font-size:11px">' + o.city + '</span>' : ''}<br><span class="at-detail orange">Pickup: ${pickupStr}</span></span>
+      <span class="at-detail red">${daysText}</span>
+    </div>`;
+  });
+  tipEl.innerHTML = tipHtml;
+}
+
+function checkUnpaidOverdue() {
+  const now = new Date();
+  const overdue = [];
+  const unpaidStatuses = ['', 'Unpaid', 'Submitted HG', 'Submitted SQ'];
+  // Only check inspections in the currently viewed month
+  const viewYear = currentYear;
+  const viewMonth = currentMonth;
+  inspections.forEach(i => {
+    if (!i.address) return;
+    if (!unpaidStatuses.includes(i.pmtStatus)) return;
+    const inspDate = new Date(i.date + 'T12:00:00');
+    if (inspDate.getFullYear() !== viewYear || inspDate.getMonth() !== viewMonth) return;
+    const hoursSince = (now - inspDate) / (1000 * 60 * 60);
+    if (hoursSince < 48) return;
+    const daysOverdue = Math.floor(hoursSince / 24);
+    overdue.push({ id: i.id, inspector: i.inspector, address: i.address, city: i.city, date: i.date, total: parseMoney(i.total), pmtStatus: i.pmtStatus || 'Unpaid', daysOverdue });
+  });
+
+  const alertEl = document.getElementById('unpaidAlert');
+  const textEl = document.getElementById('unpaidAlertText');
+  const tipEl = document.getElementById('unpaidAlertTooltip');
+
+  if (overdue.length === 0) {
+    alertEl.style.display = 'none';
+    return;
+  }
+
+  const totalAmt = overdue.reduce((s, o) => s + (o.total || 0), 0);
+  alertEl.style.display = 'block';
+  textEl.textContent = `${overdue.length} unpaid inspection${overdue.length > 1 ? 's' : ''} past 48 hours — ${fmtMoney(totalAmt)} outstanding`;
+
+  let tipHtml = '<div class="at-header orange">💰 Unpaid Inspections (48h+)</div>';
+  overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
+  overdue.forEach(o => {
+    const cls = o.inspector === 'Brett' ? 'brett' : 'kerry';
+    const icon = o.inspector === 'Brett' ? '🔴' : '🔵';
+    const dt = new Date(o.date + 'T12:00:00');
+    const dateStr = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    tipHtml += `<div class="at-row" onclick="scrollToInspection(${o.id})" style="cursor:pointer">
+      <span class="at-inspector ${cls}">${icon} ${o.inspector}</span>
+      <span><span class="at-addr">${o.address}</span>${o.city ? '<br><span style="color:var(--t4);font-size:11px">' + o.city + '</span>' : ''}<br><span class="at-detail orange">${dateStr} · ${o.pmtStatus} · ${fmtMoney(o.total)}</span></span>
+      <span class="at-detail orange">${o.daysOverdue}d</span>
+    </div>`;
+  });
+  tipEl.innerHTML = tipHtml;
+}
+
+function renderTable(){
+  document.getElementById('monthLabel').textContent=getMonthLabel();
+  // Check for overdue radon tests and unpaid inspections
+  checkRadonOverdue();
+  checkUnpaidOverdue();
+  // Rebuild city filter options
+  buildFilterDropdown('filterPaid', paidOptions, 'All Payments');
+  buildFilterDropdown('filterCity', getCityOptions(), 'All Cities');
+  buildFilterDropdown('filterInspector', inspectorOptions, 'All Inspectors');
+
+  const visible=getVisible();const withAddr=visible.filter(i=>i.address);
+  const totalRev=withAddr.reduce((s,i)=>s+(i.total||0),0);
+  const totalComm=withAddr.reduce((s,i)=>s+calcCommission(i),0);
+  const unpaidStatuses=['','Unpaid','Submitted HG','Submitted SQ','No','Awaiting Closing'];
+  const unpaid=withAddr.filter(i=>unpaidStatuses.includes(i.pmtStatus)).reduce((s,i)=>s+(i.total||0),0);
+  const count=withAddr.length;
+
+  document.getElementById('sCount').textContent=count;
+  document.getElementById('sRevenue').textContent=fmtMoney(totalRev)||'$0';
+  document.getElementById('sUnpaid').textContent=fmtMoney(unpaid)||'$0';
+  document.getElementById('sTotalComm').textContent=fmtMoney(totalComm)||'$0';
+
+  const bI=withAddr.filter(i=>i.inspector==='Brett'),kI=withAddr.filter(i=>i.inspector==='Kerry');
+  document.getElementById('brettCount').textContent=bI.length;
+  document.getElementById('brettIncome').textContent=fmtMoney(bI.reduce((s,i)=>s+(i.total||0),0))||'$0';
+  document.getElementById('brettComm').textContent=fmtMoney(bI.reduce((s,i)=>s+calcCommission(i),0))||'$0';
+  document.getElementById('brettUnpaid').textContent=fmtMoney(bI.filter(i=>i.paid==='No').reduce((s,i)=>s+calcCommission(i),0))||'$0';
+  document.getElementById('kerryCount').textContent=kI.length;
+  document.getElementById('kerryIncome').textContent=fmtMoney(kI.reduce((s,i)=>s+(i.total||0),0))||'$0';
+  document.getElementById('kerryComm').textContent=fmtMoney(kI.reduce((s,i)=>s+calcCommission(i),0))||'$0';
+  document.getElementById('kerryUnpaid').textContent=fmtMoney(kI.filter(i=>i.paid==='No').reduce((s,i)=>s+calcCommission(i),0))||'$0';
+
+  const list=document.getElementById('inspList');
+  if(visible.length===0){list.innerHTML=`<div class="empty-state"><div class="empty-state-icon">📋</div><h3>No inspections for ${getMonthLabel()}</h3><p>${isSignedIn?'Click Sync to pull from calendar':'Connect your Google Calendar to get started'}</p></div>`;return;}
+
+  let html='';
+  visible.forEach((i,idx)=>{
+    const dt=new Date(i.date+'T12:00:00');
+    const day=dt.getDate();const mon=dt.toLocaleDateString('en-US',{month:'short'});
+    const wkday=dt.toLocaleDateString('en-US',{weekday:'short'});
+    const inspTag=i.inspector==='Kerry'?'<span class="tag tag-kerry">Kerry</span>':'<span class="tag tag-brett">Brett</span>';
+    const pmtTag=i.paid==='Yes'?`<span class="tag ${pmtTagClass(i.pmtStatus)}">${i.pmtStatus||'Paid'}</span>`:'<span class="tag tag-unpaid">Unpaid</span>';
+
+    const unpaidStatuses=['Unpaid','Submitted HG','Submitted SQ','Awaiting Closing','No'];
+    const isUnpaid=unpaidStatuses.includes(i.pmtStatus);
+
+    html+=`<div class="anim" style="animation-delay:${idx*30}ms">
+      <div class="insp-wrap" id="insp-${i.id}" onclick="toggleDetail(event, this)">
+      <div class="insp-card${isUnpaid?' unpaid-highlight':''}">
+        <div class="date-block"><div class="date-mon">${mon}</div><div class="date-day">${day}</div><div class="date-weekday">${wkday}</div></div>
+        <div><div class="ed insp-addr" onclick="startEdit(this,${i.id},'address')">${i.address||'<span class="ph">Enter address</span>'}</div><div class="ed insp-city" onclick="startEdit(this,${i.id},'city')">${i.city||'<span class="ph">City</span>'}</div></div>
+        <div><div class="ed insp-client" onclick="startEdit(this,${i.id},'client')">${i.client||'<span class="ph">Client</span>'}</div><div class="ed insp-agent" onclick="startEdit(this,${i.id},'agent')">${i.agent?'Agent: '+i.agent:'<span class="ph">Agent</span>'}</div></div>
+        <div><div class="insp-fee">${i.total?(i.taxable==='No'?fmtMoney(preTax(i.total)):fmtMoney(i.total)):'$0'}</div><div class="insp-fee-label">${i.taxable==='No'?'Total (pre-tax)':'Total'}</div></div>
+        <div><div class="insp-comm">${fmtMoney(calcCommission(i))||'$0'}</div><div class="insp-fee-label">Commission</div></div>
+        ${makeCardSel(i.id,'inspector',i.inspector,[{value:'Brett',label:'🔴 Brett'},{value:'Kerry',label:'🔵 Kerry'}],'Inspector')}
+        ${makeCardSel(i.id,'taxable',i.taxable,[{value:'',label:'—'},{value:'Yes',label:'Taxable'},{value:'No',label:'No'}],'Tax Status')}
+        ${makeCardSel(i.id,'pmtStatus',i.pmtStatus,[{value:'Unpaid',label:'Unpaid'},{value:'Submitted HG',label:'Submitted HG'},{value:'Submitted SQ',label:'Submitted SQ'},{value:'Awaiting Closing',label:'Awaiting Closing'},{value:'No',label:'No'},{value:'Paid HG',label:'Paid HG'},{value:'Paid SQ',label:'Paid SQ'},{value:'Venmo',label:'Venmo'},{value:'Zelle',label:'Zelle'},{value:'Cash',label:'Cash'},{value:'Check',label:'Check'}],'Payment Status')}
+        ${makeCardSel(i.id,'paid',i.paid,[{value:'',label:'—'},{value:'No',label:'Unpaid'},{value:'Yes',label:'Paid'}],'Commission')}
+        <div><button class="del-btn" onclick="deleteRow(${i.id})">×</button></div>
+      </div>
+      <div class="detail-row" id="detail-${i.id}">
+        <div class="detail-field"><label>Insp Fee${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'inspFee')">${i.inspFee?(i.taxable==='No'?'$'+Math.round(preTax(parseMoney(i.inspFee))):i.inspFee):'<span class=\"ph\">—</span>'}</div></div>
+        ${parseMoney(i.radonFee)>0?`<div class="detail-field"><label>Radon Fee${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'radonFee')">${i.taxable==='No'?'$'+Math.round(preTax(parseMoney(i.radonFee))):i.radonFee} <span class="svc-remove" onclick="removeService(${i.id},'radonFee',event);event.stopPropagation();" title="Remove radon test">×</span></div></div>`:''}
+        ${parseMoney(i.waterFee)>0?`<div class="detail-field"><label>Water Fee${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'waterFee')">${i.taxable==='No'?'$'+Math.round(preTax(parseMoney(i.waterFee))):i.waterFee} <span class="svc-remove" onclick="removeService(${i.id},'waterFee',event);event.stopPropagation();" title="Remove water test">×</span></div></div>`:''}
+        ${parseMoney(i.mileage)>0?`<div class="detail-field"><label>Mileage${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'mileage')">${i.taxable==='No'?'$'+Math.round(preTax(parseMoney(i.mileage))):i.mileage} <span class="svc-remove" onclick="removeService(${i.id},'mileage',event);event.stopPropagation();" title="Remove mileage">×</span></div></div>`:''}
+        ${parseMoney(i.discount)!==0?`<div class="detail-field"><label>Discount${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'discount')">${i.taxable==='No'?'-$'+Math.round(Math.abs(preTax(parseMoney(i.discount)))):i.discount}${i.discountReason?' ('+i.discountReason+')':''} <span class="svc-remove" onclick="removeService(${i.id},'discount',event);event.stopPropagation();" title="Remove discount">×</span></div></div>`:''}
+        <div class="detail-field"><div class="svc-anchor"><button class="add-svc-btn" onclick="toggleSvcMenu(${i.id},this,event)">+ Add Service</button></div></div>
+        <div class="detail-field"><label>Year</label><div class="ed" onclick="startEdit(this,${i.id},'yearBuilt')">${i.yearBuilt||'<span class="ph">—</span>'}</div></div>
+        <div class="detail-field"><label>SQFT</label><div class="ed" onclick="startEdit(this,${i.id},'sqft')">${i.sqft||'<span class="ph">—</span>'}</div></div>
+        ${parseMoney(i.radonFee)>0?`<div class="detail-field"><label>Radon</label>${makeSel(i.id,'radon',i.radon,[{value:'',label:'—'},{value:'No',label:'No'},{value:'Yes',label:'Yes'},{value:'Complete',label:'Complete'}])}</div>
+        <div class="detail-field"><label>Level</label><div class="ed" onclick="startEdit(this,${i.id},'level')">${i.level||'<span class="ph">—</span>'}</div></div>`:''}
+        ${i.pmtStatus==='Awaiting Closing'?`<div class="detail-field"><label>Closing Date</label><div class="ed" onclick="startEdit(this,${i.id},'closingDate')">${i.closingDate||'<span class="ph">Enter date</span>'}</div></div>`:''}
+        <div class="detail-field detail-notes"><label>Notes</label><textarea placeholder="Add inspection notes..." onblur="updateNotes(${i.id},this.value)">${i.notes||''}</textarea></div>
+      </div>
+      </div>
+    </div>`;
+  });
+  list.innerHTML=html;
+  // Re-apply expand/collapse all state
+  if (document.getElementById('expandAllCb')?.checked) {
+    document.querySelectorAll('.detail-row').forEach(d => d.classList.add('expanded'));
+  }
+  if (collapseAllMode) {
+    document.querySelectorAll('.insp-wrap').forEach(w => w.classList.add('no-hover'));
+  }
+}
+
+// ─── TAB SWITCHING ───
+let currentTab = 'inspections';
+let metricsYear = new Date().getFullYear();
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('inspectionsPage').style.display = tab === 'inspections' ? 'flex' : 'none';
+  document.getElementById('metricsPage').style.display = tab === 'metrics' ? 'flex' : 'none';
+  document.querySelectorAll('.side-nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById(tab === 'inspections' ? 'navInspections' : 'navMetrics').classList.add('active');
+  if (tab === 'metrics') renderMetrics();
+}
+
+function changeMetricsYear(d) { metricsYear += d; renderMetrics(); }
+
+function toggleSalesTaxPaid(key) {
+  salesTaxPaid[key] = !salesTaxPaid[key];
+  renderMetrics();scheduleSave();
+}
+function toggleMidcontPaid(key) {
+  midcontPaid[key] = !midcontPaid[key];
+  renderMetrics();scheduleSave();
+}
+
+function fmtM2(v) { return '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtMC(v, cls) { if(!v || v===0) return `<span class="m-zero">—</span>`; return `<span class="${cls||''}">${fmtM2(v)}</span>`; }
+function fmtNC(v) { if(!v || v===0) return `<span class="m-zero">—</span>`; return v; }
+
+function renderMetrics() {
+  document.getElementById('metricsYearLabel').textContent = metricsYear;
+  const yr = metricsYear;
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const shortYr = String(yr).slice(2);
+
+  // Get all inspections for this year
+  const yearInsps = inspections.filter(i => {
+    const d = new Date(i.date + 'T12:00:00');
+    return d.getFullYear() === yr && i.address;
+  });
+
+  // Build monthly data
+  const monthData = [];
+  for (let m = 0; m < 12; m++) {
+    const mi = yearInsps.filter(i => new Date(i.date + 'T12:00:00').getMonth() === m);
+    const taxable = mi.filter(i => i.taxable === 'Yes');
+    const nontax = mi.filter(i => i.taxable === 'No');
+    // Taxable = full amount collected (includes tax)
+    const taxTotal = taxable.reduce((s, i) => s + (i.total || 0), 0);
+    // Non-taxable = cash, pre-tax since tax was never collected
+    const nontaxTotal = nontax.reduce((s, i) => s + Math.round(preTax(i.total || 0)), 0);
+    // Total = all inspections regardless of tax status
+    const monthTotal = mi.reduce((s, i) => s + (i.total || 0), 0);
+    // Sales tax collected from taxable inspections only
+    const salesTax = taxable.reduce((s, i) => s + ((i.total || 0) * (6.2 / 106.2)), 0);
+
+    // Per inspector
+    const inspData = {};
+    ['Brett', 'Kerry'].forEach(name => {
+      const pi = mi.filter(i => i.inspector === name);
+      const piTax = pi.filter(i => i.taxable === 'Yes');
+      const piNon = pi.filter(i => i.taxable === 'No');
+      const piTaxIncome = piTax.reduce((s, i) => s + (i.total || 0), 0);
+      const piCashIncome = piNon.reduce((s, i) => s + Math.round(preTax(i.total || 0)), 0);
+      // Total = all inspections (full amount)
+      const piTotal = pi.reduce((s, i) => s + (i.total || 0), 0);
+      const piRadon = pi.reduce((s, i) => s + parseMoney(i.radonFee), 0);
+      const piWater = pi.reduce((s, i) => s + parseMoney(i.waterFee), 0);
+      const piMileage = pi.reduce((s, i) => s + parseMoney(i.mileage), 0);
+      const piDiscount = pi.reduce((s, i) => s + parseMoney(i.discount), 0);
+      const piCommEarned = pi.reduce((s, i) => s + calcCommission(i), 0);
+      const piCommNP = pi.filter(i => i.paid === 'No').reduce((s, i) => s + calcCommission(i), 0);
+      inspData[name] = { count: pi.length, taxable: piTaxIncome, cash: piCashIncome, total: piTotal, radon: piRadon, water: piWater, mileage: piMileage, discount: piDiscount, commEarned: piCommEarned, commNP: piCommNP };
+    });
+
+    // Water tests: revenue collected, $50 commission to inspector, net due to Midcontinent
+    const waterInsps = mi.filter(i => parseMoney(i.waterFee) > 0);
+    const waterTests = waterInsps.length;
+    const waterRevenue = waterInsps.reduce((s, i) => s + parseMoney(i.waterFee), 0);
+    const waterCommPaid = waterTests * 50;
+    const waterDueMidcont = waterRevenue - waterCommPaid;
+
+    monthData.push({ label: months[m] + ' ' + shortYr, count: mi.length, taxable: taxTotal, nontax: nontaxTotal, total: monthTotal, salesTax, waterTests, waterRevenue, waterCommPaid, waterDueMidcont, inspData });
+  }
+
+  // Build quarter sums
+  function sumRange(start, end) {
+    const slice = monthData.slice(start, end);
+    const r = { count: 0, taxable: 0, nontax: 0, total: 0, salesTax: 0, waterTests: 0, waterRevenue: 0, waterCommPaid: 0, waterDueMidcont: 0, inspData: {} };
+    ['Brett', 'Kerry'].forEach(n => { r.inspData[n] = { count: 0, taxable: 0, cash: 0, total: 0, radon: 0, water: 0, mileage: 0, discount: 0, commEarned: 0, commNP: 0 }; });
+    slice.forEach(m => {
+      r.count += m.count; r.taxable += m.taxable; r.nontax += m.nontax; r.total += m.total; r.salesTax += m.salesTax; r.waterTests += m.waterTests; r.waterRevenue += m.waterRevenue; r.waterCommPaid += m.waterCommPaid; r.waterDueMidcont += m.waterDueMidcont;
+      ['Brett', 'Kerry'].forEach(n => { const d = m.inspData[n]; const rd = r.inspData[n]; Object.keys(rd).forEach(k => rd[k] += d[k]); });
+    });
+    return r;
+  }
+
+  const q = [sumRange(0,3), sumRange(3,6), sumRange(6,9), sumRange(9,12)];
+  const yearTotal = sumRange(0, 12);
+
+  // ─── COMPANY OVERVIEW ───
+  let compHtml = `<div class="m-summary">
+    <div class="m-summary-card"><div class="m-summary-label">Total Inspections</div><div class="m-summary-val" style="color:var(--accent)">${yearTotal.count}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Taxable Revenue</div><div class="m-summary-val" style="color:var(--green)">${fmtM2(yearTotal.taxable)}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Non-Taxable</div><div class="m-summary-val" style="color:var(--t1)">${fmtM2(yearTotal.nontax)}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Total Revenue</div><div class="m-summary-val" style="color:var(--green)">${fmtM2(yearTotal.total)}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Water Tests</div><div class="m-summary-val" style="color:var(--accent)">${yearTotal.waterTests}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Due Midcontinent</div><div class="m-summary-val" style="color:var(--orange)">${fmtM2(yearTotal.waterDueMidcont)}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Sales Tax</div><div class="m-summary-val" style="color:var(--orange)">${fmtM2(yearTotal.salesTax)}</div></div>
+  </div>`;
+
+  compHtml += `<table class="m-tbl"><thead><tr><th>Month</th><th>Inspections</th><th>Monthly Totals</th><th>Taxable</th><th>Non-Taxable</th><th>Water Tests</th><th>Due Midcont.</th><th>Midcont. Paid</th><th>Sales Tax</th><th>Sales Tax Paid</th></tr></thead><tbody>`;
+
+  for (let qi = 0; qi < 4; qi++) {
+    const start = qi * 3;
+    for (let mi = start; mi < start + 3; mi++) {
+      const d = monthData[mi];
+      const hasData = d.count > 0;
+      const mkey = yr + '-' + String(mi+1).padStart(2,'0');
+      const mpaid = midcontPaid[mkey];
+      const midcClass = mpaid ? 'm-money-green' : 'm-money-orange';
+      compHtml += `<tr class="${hasData?'has-data':'no-data'}"><td>${d.label}</td><td>${fmtNC(d.count)}</td><td>${fmtMC(d.total,'m-money-green')}</td><td>${fmtMC(d.taxable,'m-money-green')}</td><td>${fmtMC(d.nontax)}</td><td>${fmtNC(d.waterTests)}</td><td>${fmtMC(d.waterDueMidcont,midcClass)}</td><td>${hasData&&d.waterTests?`<button class="m-check ${mpaid?'m-check-yes':'m-check-no'}" onclick="toggleMidcontPaid('${mkey}')">${mpaid?'✓ Paid':'Not Paid'}</button>`:''}</td><td>${fmtMC(d.salesTax,'m-money-orange')}</td><td></td></tr>`;
+    }
+    const qkey = yr + '-Q' + (qi + 1);
+    const qpaid = salesTaxPaid[qkey];
+    const stClass = qpaid ? 'm-money-green' : 'm-money-orange';
+    compHtml += `<tr class="q-row"><td>Q${qi + 1}</td><td>${fmtNC(q[qi].count)}</td><td>${fmtMC(q[qi].total,'m-money-green')}</td><td>${fmtMC(q[qi].taxable,'m-money-green')}</td><td>${fmtMC(q[qi].nontax)}</td><td>${fmtNC(q[qi].waterTests)}</td><td>${fmtMC(q[qi].waterDueMidcont,'m-money-orange')}</td><td></td><td>${fmtMC(q[qi].salesTax,stClass)}</td><td><button class="m-check ${qpaid ? 'm-check-yes' : 'm-check-no'}" onclick="toggleSalesTaxPaid('${qkey}')">${qpaid ? '✓ Paid' : 'Not Paid'}</button></td></tr>`;
+    if (qi < 3) compHtml += `<tr class="gap-row"><td colspan="10"></td></tr>`;
+  }
+  compHtml += `<tr class="gap-row"><td colspan="10"></td></tr>`;
+  compHtml += `<tr class="yr-row"><td>${yr} Total</td><td>${yearTotal.count}</td><td class="m-money-green">${fmtM2(yearTotal.total)}</td><td class="m-money-green">${fmtM2(yearTotal.taxable)}</td><td>${fmtM2(yearTotal.nontax)}</td><td>${yearTotal.waterTests}</td><td class="m-money-orange">${fmtM2(yearTotal.waterDueMidcont)}</td><td></td><td class="m-money-orange">${fmtM2(yearTotal.salesTax)}</td><td></td></tr>`;
+  compHtml += `</tbody></table>`;
+
+  // ─── INSPECTOR TABLE ───
+  function inspTable(name, color) {
+    const yd = yearTotal.inspData[name];
+    // Summary cards for this inspector
+    let h = `<div class="m-summary">
+      <div class="m-summary-card"><div class="m-summary-label">Inspections</div><div class="m-summary-val" style="color:${color}">${yd.count}</div></div>
+      <div class="m-summary-card"><div class="m-summary-label">Total Revenue</div><div class="m-summary-val" style="color:var(--green)">${fmtM2(yd.total)}</div></div>
+      <div class="m-summary-card"><div class="m-summary-label">Commission Earned</div><div class="m-summary-val" style="color:var(--purple)">${fmtM2(yd.commEarned)}</div></div>
+      <div class="m-summary-card"><div class="m-summary-label">Commission Unpaid</div><div class="m-summary-val" style="color:var(--orange)">${fmtM2(yd.commNP)}</div></div>
+    </div>`;
+
+    h += `<table class="m-tbl"><thead><tr><th>Month</th><th>Inspections</th><th>Total</th><th>Taxable</th><th>Cash</th><th>Radon</th><th>Water</th><th>Mileage</th><th>Discount</th><th>Comm. Earned</th><th>Comm. NP</th></tr></thead><tbody>`;
+    for (let qi = 0; qi < 4; qi++) {
+      const start = qi * 3;
+      for (let mi = start; mi < start + 3; mi++) {
+        const d = monthData[mi].inspData[name];
+        const hasData = d.count > 0;
+        h += `<tr class="${hasData?'has-data':'no-data'}"><td>${monthData[mi].label}</td><td>${fmtNC(d.count)}</td><td>${fmtMC(d.total,'m-money-green')}</td><td>${fmtMC(d.taxable,'m-money-green')}</td><td>${fmtMC(d.cash)}</td><td>${fmtMC(d.radon)}</td><td>${fmtMC(d.water)}</td><td>${fmtMC(d.mileage)}</td><td>${fmtMC(d.discount,'m-money-red')}</td><td>${fmtMC(d.commEarned,'m-money-purple')}</td><td>${fmtMC(d.commNP,'m-money-orange')}</td></tr>`;
+      }
+      const qd = q[qi].inspData[name];
+      h += `<tr class="q-row"><td>Q${qi + 1}</td><td>${fmtNC(qd.count)}</td><td>${fmtMC(qd.total,'m-money-green')}</td><td>${fmtMC(qd.taxable,'m-money-green')}</td><td>${fmtMC(qd.cash)}</td><td>${fmtMC(qd.radon)}</td><td>${fmtMC(qd.water)}</td><td>${fmtMC(qd.mileage)}</td><td>${fmtMC(qd.discount,'m-money-red')}</td><td>${fmtMC(qd.commEarned,'m-money-purple')}</td><td>${fmtMC(qd.commNP,'m-money-orange')}</td></tr>`;
+      if (qi < 3) h += `<tr class="gap-row"><td colspan="11"></td></tr>`;
+    }
+    h += `<tr class="gap-row"><td colspan="11"></td></tr>`;
+    h += `<tr class="yr-row"><td>Total</td><td>${yd.count}</td><td class="m-money-green">${fmtM2(yd.total)}</td><td class="m-money-green">${fmtM2(yd.taxable)}</td><td>${fmtM2(yd.cash)}</td><td>${fmtM2(yd.radon)}</td><td>${fmtM2(yd.water)}</td><td>${fmtM2(yd.mileage)}</td><td class="m-money-red">${fmtM2(yd.discount)}</td><td class="m-money-purple">${fmtM2(yd.commEarned)}</td><td class="m-money-orange">${fmtM2(yd.commNP)}</td></tr>`;
+    h += `</tbody></table>`;
+    return h;
+  }
+
+  // Assemble
+  let html = `
+    <div class="m-section">
+      <div class="m-section-header"><div class="m-section-dot" style="background:var(--accent)"></div><h3>Company Overview — ${yr}</h3></div>
+      ${compHtml}
+    </div>
+    <div class="m-section">
+      <div class="m-section-header"><div class="m-section-dot" style="background:#EF4444"></div><h3>Brett — ${yr}</h3></div>
+      ${inspTable('Brett', '#EF4444')}
+    </div>
+    <div class="m-section">
+      <div class="m-section-header"><div class="m-section-dot" style="background:#3B82F6"></div><h3>Kerry — ${yr}</h3></div>
+      ${inspTable('Kerry', '#3B82F6')}
+    </div>`;
+
+  document.getElementById('metricsContent').innerHTML = html;
+}
+
+// Load saved data from localStorage first, then try Google API
+loadLocal();
+initGoogleAPI();
+renderTable();
+
+// ─── MOBILE SIDEBAR ───
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sideOverlay').classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sideOverlay').classList.remove('open');
+}
+// Close sidebar when nav link clicked on mobile
+document.querySelectorAll('.side-nav a').forEach(a => {
+  a.addEventListener('click', () => { if (window.innerWidth <= 768) closeSidebar(); });
+});
+</script>
+
+<!-- ADD INSPECTION MODAL -->
+<div id="addInspModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAddModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>?? Add Inspection</h2>
+      <button class="modal-close" onclick="closeAddModal()">�</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-row two">
+        <div class="modal-field"><label>Date</label><input type="date" id="mi_date"></div>
+        <div class="modal-field"><label>Inspector</label>
+          <select id="mi_inspector">
+            <option value="Brett">?? Brett</option>
+            <option value="Kerry">?? Kerry</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Address</label><input type="text" id="mi_address" placeholder="123 Main St"></div>
+      </div>
+      <div class="modal-row two">
+        <div class="modal-field"><label>City</label><input type="text" id="mi_city" placeholder="Rapid City"></div>
+        <div class="modal-field"><label>Client Name</label><input type="text" id="mi_client" placeholder="John Smith"></div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Buyer's Agent</label><input type="text" id="mi_agent" placeholder="Agent name (optional)"></div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:4px 0 16px;">
+      <div class="modal-row two">
+        <div class="modal-field"><label>Taxable</label>
+          <select id="mi_taxable" onchange="updateModalCommPreview()">
+            <option value="">� Select �</option>
+            <option value="Yes">Yes (HomeGauge / card)</option>
+            <option value="No">No (Cash)</option>
+          </select>
+        </div>
+        <div class="modal-field"><label>Payment Status</label>
+          <select id="mi_pmtStatus">
+            <option value="Unpaid">Unpaid</option>
+            <option value="Submitted HG">Submitted HG</option>
+            <option value="Submitted SQ">Submitted SQ</option>
+            <option value="Paid HG">Paid HG</option>
+            <option value="Paid SQ">Paid SQ</option>
+            <option value="Venmo">Venmo</option>
+            <option value="Zelle">Zelle</option>
+            <option value="Cash">Cash</option>
+            <option value="Check">Check</option>
+            <option value="Awaiting Closing">Awaiting Closing</option>
+            <option value="No">No</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-row three">
+        <div class="modal-field">
+          <label>Insp Fee <span id="mi_fee_hint" style="color:var(--t4);font-weight:400;text-transform:none"></span></label>
+          <input type="number" id="mi_inspFee" placeholder="450" step="0.01" oninput="updateModalCommPreview()">
+          <div class="fee-hint" id="mi_fee_subhint"></div>
+        </div>
+        <div class="modal-field"><label>Radon Fee</label><input type="number" id="mi_radonFee" placeholder="0" step="0.01" oninput="updateModalCommPreview()"></div>
+        <div class="modal-field"><label>Water Fee</label><input type="number" id="mi_waterFee" placeholder="0" step="0.01" oninput="updateModalCommPreview()"></div>
+      </div>
+      <div class="modal-row two">
+        <div class="modal-field"><label>Mileage</label><input type="number" id="mi_mileage" placeholder="0" step="0.01" oninput="updateModalCommPreview()"></div>
+        <div class="modal-field"><label>Discount</label><input type="number" id="mi_discount" placeholder="0" step="0.01" oninput="updateModalCommPreview()"></div>
+      </div>
+      <div class="modal-comm-preview">
+        <div>
+          <div class="mcp-label">Estimated Commission</div>
+          <div style="font-size:11px;color:var(--t4);margin-top:2px" id="mi_comm_note">Tax is never applied to commission</div>
+        </div>
+        <div class="mcp-val" id="mi_comm_preview">�</div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Notes</label><textarea id="mi_notes" rows="2" placeholder="Optional notes..."></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="submitAddModal()">Add Inspection</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
+ + v.toFixed(2)) : '';
+  const pmtStatus = document.getElementById('mi_pmtStatus').value;
+  const paidStatuses = ['Cash','Paid HG','Paid SQ','Venmo','Zelle','Check'];
+  const insp = {
+    id: nextId++, googleId: null, date, address,
+    city: document.getElementById('mi_city').value.trim(),
+    client: document.getElementById('mi_client').value.trim(),
+    agent: document.getElementById('mi_agent').value.trim(),
+    inspector: document.getElementById('mi_inspector').value,
+    taxable, pmtStatus,
+    paid: paidStatuses.includes(pmtStatus) ? 'Yes' : '',
+    inspFee: fmt(inspFeeRaw), radonFee: fmt(radonFeeRaw),
+    waterFee: fmt(waterFeeRaw), mileage: fmt(mileageRaw),
+    discount: fmtNeg(discountRaw), discountReason: '',
+    radon: radonFeeRaw > 0 ? 'Yes' : '', level: '',
+    yearBuilt: '', sqft: '', closingDate: '',
+    notes: document.getElementById('mi_notes').value.trim()
+  };
+  insp.total = inspFeeRaw + radonFeeRaw + waterFeeRaw + mileageRaw - discountRaw;
+  insp.commission = calcCommission(insp);
+  inspections.push(insp);
+  closeAddModal();
+  renderTable();
+  scheduleSave();
+  setTimeout(() => scrollToInspection(insp.id), 200);
+}-${String(currentMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;inspections.push({id:nextId++,googleId:null,date:ds,address:'',city:'',radon:'',level:'',discount:'',discountReason:'',inspFee:'',radonFee:'',waterFee:'',mileage:'',total:0,taxable:'',inspector:'Brett',commission:0,paid:'',agent:'',client:'',pmtStatus:'Unpaid',yearBuilt:'',sqft:'',closingDate:'',notes:''});renderTable();scheduleSave();}
+
+function updateField(id,field,value){const i=inspections.find(x=>x.id===id);if(!i)return;i[field]=value;if(['inspFee','radonFee','waterFee','mileage','discount'].includes(field)){i.total=parseMoney(i.inspFee)+parseMoney(i.discount)+parseMoney(i.radonFee)+parseMoney(i.waterFee)+parseMoney(i.mileage);i.commission=calcCommission(i);}if(field==='pmtStatus'&&value==='Cash'){i.paid='Yes';}renderTable();scheduleSave();}
+
+function startEdit(el,id,field){const i=inspections.find(x=>x.id===id);const val=i[field]||'';el.innerHTML=`<input class="ed-input" value="${String(val).replace(/"/g,'&quot;')}" onblur="finishEdit(this,${id},'${field}')" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){this.dataset.cancel='1';this.blur();}">`;el.querySelector('input').focus();}
+function finishEdit(input,id,field){if(input.dataset.cancel){renderTable();return;}updateField(id,field,input.value);}
+function deleteRow(id){if(!confirm('Delete this inspection?'))return;inspections=inspections.filter(i=>i.id!==id);renderTable();scheduleSave();}
+function updateNotes(id,val){const i=inspections.find(x=>x.id===id);if(i){i.notes=val;scheduleSave();}}
+
+function toggleDetail(e, wrap) {
+  // Don't toggle if clicking on editable fields, selects, buttons, textareas, inputs
+  const tag = e.target.tagName;
+  if (tag === 'SELECT' || tag === 'OPTION' || tag === 'BUTTON' || tag === 'TEXTAREA' || tag === 'INPUT') return;
+  if (e.target.closest('.del-btn') || e.target.closest('select') || e.target.closest('textarea') || e.target.closest('input') || e.target.closest('.add-svc-btn') || e.target.closest('.svc-menu') || e.target.closest('.svc-anchor')) return;
+  // Don't toggle if user is editing (clicked an .ed element)
+  if (e.target.classList.contains('ed') || e.target.closest('.ed')) return;
+  // Don't close if clicking inside the detail-row content area
+  if (e.target.closest('.detail-row') && e.target.closest('.detail-field')) return;
+  const detail = wrap.querySelector('.detail-row');
+  if (detail) detail.classList.toggle('expanded');
+}
+
+function scrollToInspection(id) {
+  const el = document.getElementById('insp-' + id);
+  if (!el) return;
+  // Expand the detail row
+  const detail = el.querySelector('.detail-row');
+  if (detail) detail.classList.add('expanded');
+  // Scroll into view with highlight flash
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.style.outline = '2px solid #EF4444';
+  el.style.outlineOffset = '2px';
+  el.style.borderRadius = '12px';
+  setTimeout(() => { el.style.outline = 'none'; }, 2500);
+}
+
+let collapseAllMode = false;
+let payAllSnapshot = {}; // stores { 'Brett': [{id, prevPaid}, ...], 'Kerry': [...] }
+
+function togglePayAll(inspector, checked) {
+  if (checked) {
+    // Save current states and set all to Paid
+    const snapshot = [];
+    inspections.forEach(i => {
+      if (!i.address) return;
+      const d = new Date(i.date + 'T12:00:00');
+      if (d.getMonth() !== currentMonth || d.getFullYear() !== currentYear) return;
+      if (i.inspector !== inspector) return;
+      snapshot.push({ id: i.id, prevPaid: i.paid });
+      i.paid = 'Yes';
+    });
+    payAllSnapshot[inspector] = snapshot;
+    renderTable();
+    scheduleSave();
+  } else {
+    // Restore previous states
+    const snapshot = payAllSnapshot[inspector] || [];
+    snapshot.forEach(s => {
+      const i = inspections.find(x => x.id === s.id);
+      if (i) i.paid = s.prevPaid;
+    });
+    delete payAllSnapshot[inspector];
+    renderTable();
+    scheduleSave();
+  }
+}
+
+function toggleExpandAll() {
+  const cb = document.getElementById('expandAllCb');
+  if (cb.checked) {
+    // Uncheck collapse all
+    document.getElementById('collapseAllCb').checked = false;
+    collapseAllMode = false;
+    document.querySelectorAll('.insp-wrap').forEach(w => {
+      w.classList.remove('no-hover');
+      w.querySelector('.detail-row')?.classList.add('expanded');
+    });
+  } else {
+    document.querySelectorAll('.detail-row').forEach(d => d.classList.remove('expanded'));
+  }
+}
+
+function toggleCollapseAll() {
+  const cb = document.getElementById('collapseAllCb');
+  if (cb.checked) {
+    // Uncheck expand all
+    document.getElementById('expandAllCb').checked = false;
+    collapseAllMode = true;
+    document.querySelectorAll('.detail-row').forEach(d => d.classList.remove('expanded'));
+    document.querySelectorAll('.insp-wrap').forEach(w => w.classList.add('no-hover'));
+  } else {
+    collapseAllMode = false;
+    document.querySelectorAll('.insp-wrap').forEach(w => w.classList.remove('no-hover'));
+  }
+}
+function toggleExpand(id){expandedId=expandedId===id?null:id;renderTable();}
+
+function makeSel(id,field,value,options){return`<select class="cell-sel" onchange="updateField(${id},'${field}',this.value);renderTable();">${options.map(o=>{const v=typeof o==='object'?o.value:o;const l=typeof o==='object'?o.label:o;return`<option value="${v}" ${value===v?'selected':''}>${l}</option>`;}).join('')}</select>`;}
+
+function makeCardSel(id,field,value,options,label){
+  const unpaidVals=['Unpaid','Submitted HG','Submitted SQ','Awaiting Closing','No'];
+  const isUnpaidPmt = field==='pmtStatus' && unpaidVals.includes(value);
+  const isPaidPmt = field==='pmtStatus' && !unpaidVals.includes(value) && value;
+  // Determine if this field needs attention (blank/default)
+  let needsInput = false;
+  if (field==='taxable' && !value) needsInput = true;
+  if (field==='pmtStatus' && value==='Unpaid') needsInput = true;
+  if (field==='paid' && !value) needsInput = true;
+  const niClass = needsInput ? ' needs-input' : '';
+  const niLabel = needsInput ? ' needs-input' : '';
+  return`<div><div class="card-sel-label${niLabel}">${label}</div><select class="card-sel${isUnpaidPmt?' pmt-unpaid':''}${isPaidPmt?' pmt-paid':''}${niClass}" onchange="updateField(${id},'${field}',this.value);renderTable();">${options.map(o=>{const v=typeof o==='object'?o.value:o;const l=typeof o==='object'?o.label:o;const isOptUnpaid=field==='pmtStatus'&&unpaidVals.includes(v);const isOptPaid=field==='pmtStatus'&&!unpaidVals.includes(v)&&v;return`<option value="${v}" ${value===v?'selected':''} ${isOptUnpaid?'class="opt-unpaid"':''}${isOptPaid?'class="opt-paid"':''}>${l}</option>`;}).join('')}</select></div>`;
+}
+
+function exportCSV(){const v=getVisible();const rows=[['Date','Address','City','Radon','Level','Discount','Insp Fee','Radon Fee','Water Fee','Mileage','Total','Taxable','Inspector','Commission','Paid','Agent','Client','PMT Status','Year Built','SQFT','Notes']];v.forEach(i=>{rows.push([i.date,i.address,i.city,i.radon,i.level,i.discount,i.inspFee,i.radonFee,i.waterFee,i.mileage,fmtMoney(i.total),i.taxable,i.inspector,fmtMoney(i.commission),i.paid,i.agent,i.client,i.pmtStatus,i.yearBuilt||'',i.sqft||'',i.notes]);});const csv=rows.map(r=>r.map(c=>`"${c||''}"`).join(',')).join('\n');const blob=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`inspections-${getMonthLabel().replace(' ','-')}.csv`;a.click();}
+
+/* ── Export Map Data (geocodes ALL inspections → map-data.js) ── */
+async function exportMapData(){
+  const GKEY='AIzaSyBaXb9xr6udtu2jW8m7COjoEob9MsR4Ecs';
+  const all=inspections.filter(i=>i.address&&i.city);
+  if(!all.length){alert('No inspections with addresses found.');return;}
+  let cache={};
+  try{cache=JSON.parse(localStorage.getItem('aaic_geocache')||'{}');}catch(e){}
+  const uniqueAddrs={};
+  all.forEach(i=>{
+    const key=(i.address+', '+i.city+', SD').trim().toLowerCase();
+    if(!uniqueAddrs[key])uniqueAddrs[key]={addr:i.address+', '+i.city+', SD',inspections:[]};
+    uniqueAddrs[key].inspections.push({date:i.date,inspector:i.inspector});
+  });
+  const keys=Object.keys(uniqueAddrs);
+  const toGeocode=keys.filter(k=>!cache[k]);
+  // Progress modal
+  const modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:99999';
+  const box=document.createElement('div');
+  box.style.cssText='background:var(--bg2,#1e1e1e);border-radius:16px;padding:32px 40px;min-width:380px;text-align:center;color:var(--t1,#fff);font-family:inherit';
+  box.innerHTML=`<h3 style="margin:0 0 8px;font-size:18px">🗺️ Exporting Map Data</h3>
+    <p style="margin:0 0 16px;color:var(--t3,#999);font-size:13px">${keys.length} unique addresses · ${toGeocode.length} need geocoding · ${keys.length-toGeocode.length} cached</p>
+    <div style="background:var(--bg3,#333);border-radius:8px;height:8px;overflow:hidden;margin:0 0 12px">
+      <div id="mapExpBar" style="height:100%;background:var(--acc,#5b9);width:${toGeocode.length?0:100}%;transition:width 0.3s;border-radius:8px"></div>
+    </div>
+    <p id="mapExpStatus" style="margin:0;font-size:13px;color:var(--t2,#ccc)">${toGeocode.length?'Starting geocoding...':'All addresses cached!'}</p>
+    <button id="mapExpCancel" onclick="this.dataset.cancel='1'" style="margin-top:16px;padding:8px 20px;border-radius:8px;border:1px solid var(--brd,#444);background:none;color:var(--t2,#ccc);cursor:pointer;font-size:13px">Cancel</button>`;
+  modal.appendChild(box);document.body.appendChild(modal);
+  const bar=document.getElementById('mapExpBar');
+  const status=document.getElementById('mapExpStatus');
+  const cancelBtn=document.getElementById('mapExpCancel');
+  // Geocode missing addresses
+  let done=0,errors=0;
+  for(const k of toGeocode){
+    if(cancelBtn.dataset.cancel==='1'){modal.remove();return;}
+    try{
+      const resp=await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(uniqueAddrs[k].addr)}&key=${GKEY}`);
+      const data=await resp.json();
+      if(data.results&&data.results[0]){
+        const loc=data.results[0].geometry.location;
+        cache[k]={lat:loc.lat,lng:loc.lng};
+      }else{errors++;}
+    }catch(e){errors++;}
+    done++;
+    bar.style.width=Math.round((done/toGeocode.length)*100)+'%';
+    status.textContent=`Geocoded ${done}/${toGeocode.length}${errors?' ('+errors+' failed)':''}`;
+    if(done%10===0)await new Promise(r=>setTimeout(r,1100));
+  }
+  localStorage.setItem('aaic_geocache',JSON.stringify(cache));
+  // Build pins
+  const pins=[];
+  keys.forEach(k=>{
+    if(!cache[k])return;
+    const u=uniqueAddrs[k];
+    u.inspections.forEach(ins=>{
+      pins.push({lat:cache[k].lat,lng:cache[k].lng,d:ins.date,i:ins.inspector});
+    });
+  });
+  const js=`// AAIC Map Data — Generated ${new Date().toLocaleDateString()}\n// ${pins.length} inspections geocoded\nconst AAIC_MAP_DATA = ${JSON.stringify(pins)};\n`;
+  const blob=new Blob([js],{type:'application/javascript'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='map-data.js';
+  status.textContent=`Done! ${pins.length} pins ready. Downloading...`;
+  bar.style.width='100%';
+  cancelBtn.textContent='Close';cancelBtn.onclick=()=>modal.remove();
+  setTimeout(()=>a.click(),500);
+}
+
+// Multi-select filter state
+const filterSelections = {
+  filterPaid: [],
+  filterCity: [],
+  filterInspector: []
+};
+
+const paidOptions = ['Unpaid','Submitted HG','Submitted SQ','Awaiting Closing','No','Paid HG','Paid SQ','Venmo','Zelle','Cash','Check'];
+const inspectorOptions = ['Brett','Kerry'];
+
+function buildFilterDropdown(id, options, allLabel) {
+  const drop = document.getElementById(id + 'Drop');
+  const wasOpen = drop.classList.contains('open');
+  const sel = filterSelections[id];
+  const allSelected = sel.length === 0;
+  let h = `<div class="mf-opt mf-opt-all ${allSelected?'selected':''}" onclick="event.stopPropagation();clearFilter('${id}')"><span class="mf-check">${allSelected?'✓':''}</span>${allLabel}</div>`;
+  options.forEach(opt => {
+    const isSel = sel.includes(opt);
+    h += `<div class="mf-opt ${isSel?'selected':''}" onclick="event.stopPropagation();toggleFilterOpt('${id}','${opt.replace(/'/g,"\\'")}')"><span class="mf-check">${isSel?'✓':''}</span>${opt}</div>`;
+  });
+  drop.innerHTML = h;
+  if (wasOpen) drop.classList.add('open');
+  const label = document.getElementById(id + 'Label');
+  if (sel.length === 0) label.textContent = allLabel;
+  else if (sel.length === 1) label.textContent = sel[0];
+  else label.textContent = sel.length + ' selected';
+}
+
+function toggleMultiFilter(id) {
+  const drop = document.getElementById(id + 'Drop');
+  const display = drop.parentElement.querySelector('.mf-display');
+  const isOpen = drop.classList.contains('open');
+  // Close all others
+  document.querySelectorAll('.mf-dropdown').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.mf-display').forEach(d => d.classList.remove('active'));
+  if (!isOpen) { drop.classList.add('open'); display.classList.add('active'); }
+}
+
+function toggleFilterOpt(id, opt) {
+  const sel = filterSelections[id];
+  const idx = sel.indexOf(opt);
+  if (idx >= 0) sel.splice(idx, 1); else sel.push(opt);
+  const allLabel = id === 'filterPaid' ? 'All Payments' : id === 'filterCity' ? 'All Cities' : 'All Inspectors';
+  const options = id === 'filterPaid' ? paidOptions : id === 'filterInspector' ? inspectorOptions : getCityOptions();
+  buildFilterDropdown(id, options, allLabel);
+  renderTable();
+}
+
+function clearFilter(id) {
+  filterSelections[id] = [];
+  const allLabel = id === 'filterPaid' ? 'All Payments' : id === 'filterCity' ? 'All Cities' : 'All Inspectors';
+  const options = id === 'filterPaid' ? paidOptions : id === 'filterInspector' ? inspectorOptions : getCityOptions();
+  buildFilterDropdown(id, options, allLabel);
+  renderTable();
+}
+
+function getCityOptions() {
+  return [...new Set(inspections.map(i => i.city).filter(Boolean))].sort();
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.multi-filter')) {
+    document.querySelectorAll('.mf-dropdown').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.mf-display').forEach(d => d.classList.remove('active'));
+  }
+});
+
+function getVisible(){
+  const search=document.getElementById('searchInput').value.toLowerCase();
+  const pmtF=filterSelections.filterPaid;
+  const cityF=filterSelections.filterCity;
+  const inspF=filterSelections.filterInspector;
+  return inspections.filter(i=>{
+    const d=new Date(i.date+'T12:00:00');
+    if(d.getMonth()!==currentMonth||d.getFullYear()!==currentYear)return false;
+    if(pmtF.length>0 && !pmtF.includes(i.pmtStatus))return false;
+    if(cityF.length>0 && !cityF.includes(i.city))return false;
+    if(inspF.length>0 && !inspF.includes(i.inspector))return false;
+    if(search){const h=[i.address,i.city,i.agent,i.client,i.notes,i.inspector].join(' ').toLowerCase();if(!h.includes(search))return false;}
+    return true;
+  }).sort((a,b)=>a.date.localeCompare(b.date));
+}
+
+function pmtTagClass(s){if(!s)return'tag-unpaid';const l=s.toLowerCase();if(l==='paid hg')return'tag-paid';if(l==='submitted hg')return'tag-submitted';if(l==='submitted sq')return'tag-submitted';if(l==='paid sq')return'tag-paid-sq';if(l==='venmo')return'tag-venmo';if(l==='zelle')return'tag-zelle';if(l==='cash')return'tag-cash';if(l==='check')return'tag-paid';if(l==='awaiting closing')return'tag-awaiting';if(l==='no')return'tag-no';if(l==='unpaid')return'tag-unpaid';return'tag-paid';}
+
+function getUnpaidInspections(){
+  const unpaidS=['','Unpaid','Submitted HG','Submitted SQ','No','Awaiting Closing'];
+  return inspections.filter(i=>{
+    const d=new Date(i.date+'T12:00:00');
+    return d.getMonth()===currentMonth && d.getFullYear()===currentYear && i.address && unpaidS.includes(i.pmtStatus);
+  }).sort((a,b)=>{
+    if(a.inspector!==b.inspector)return a.inspector.localeCompare(b.inspector);
+    if(a.date!==b.date)return a.date.localeCompare(b.date);
+    return a.address.localeCompare(b.address);
+  });
+}
+
+function buildUnpaidHTML(items){
+  if(!items.length)return'<div style="font-size:12px;color:var(--t3);padding:4px">No unpaid invoices</div>';
+  let h='';
+  const grouped={Brett:[],Kerry:[]};
+  items.forEach(i=>{if(grouped[i.inspector])grouped[i.inspector].push(i);});
+  ['Brett','Kerry'].forEach(name=>{
+    const list=grouped[name];if(!list.length)return;
+    const cls=name==='Brett'?'brett':'kerry';
+    h+=`<div class="unpaid-tooltip-group"><div class="unpaid-tooltip-group-label ${cls}">🔴 ${name==='Brett'?'🔴':'🔵'} ${name}</div>`.replace('🔴 🔴','🔴').replace('🔴 🔵','🔵');
+    list.forEach(i=>{
+      const dt=new Date(i.date+'T12:00:00');
+      const dStr=(dt.getMonth()+1)+'/'+dt.getDate();
+      h+=`<div class="unpaid-tooltip-row"><span class="utp-date">${dStr}</span><span class="utp-addr">${i.address}</span><span class="utp-amt">${fmtMoney(i.total)}</span></div>`;
+    });
+    h+=`</div>`;
+  });
+  return h;
+}
+
+function showUnpaidTooltip(e){
+  const el=document.getElementById('unpaidTooltip');
+  const items=getUnpaidInspections();
+  el.innerHTML=`<div class="unpaid-tooltip-header">Unpaid Invoices — ${getMonthLabel()}</div>`+buildUnpaidHTML(items);
+  const rect=e.currentTarget.getBoundingClientRect();
+  el.style.top=(rect.bottom+8)+'px';
+  el.style.left=Math.max(10,rect.left-100)+'px';
+  el.classList.add('show');
+}
+function hideUnpaidTooltip(){document.getElementById('unpaidTooltip').classList.remove('show');}
+
+let unpaidListOpen=false;
+function toggleUnpaidList(){
+  unpaidListOpen=!unpaidListOpen;
+  const panel=document.getElementById('unpaidListPanel');
+  if(!unpaidListOpen){panel.style.display='none';return;}
+  const items=getUnpaidInspections();
+  const total=items.reduce((s,i)=>s+(i.total||0),0);
+  let h=`<div class="ulp-header"><span class="ulp-title">Revenue Outstanding — ${getMonthLabel()} (${items.length} invoices · ${fmtMoney(total)})</span><button class="ulp-close" onclick="toggleUnpaidList()">✕</button></div>`;
+  h+=`<table><thead><tr><th>Inspector</th><th>Date</th><th>Address</th><th>Client</th><th>Amount</th><th>Status</th></tr></thead><tbody>`;
+  items.forEach(i=>{
+    const dt=new Date(i.date+'T12:00:00');
+    const dStr=(dt.getMonth()+1)+'/'+dt.getDate()+'/'+dt.getFullYear();
+    const cls=i.inspector==='Brett'?'ulp-brett':'ulp-kerry';
+    h+=`<tr><td class="ulp-inspector ${cls}">${i.inspector}</td><td>${dStr}</td><td>${i.address}</td><td>${i.client||'—'}</td><td class="ulp-amt">${fmtMoney(i.total)}</td><td class="ulp-status">${i.pmtStatus||'—'}</td></tr>`;
+  });
+  h+=`</tbody></table>`;
+  panel.innerHTML=h;
+  panel.style.display='block';
+}
+
+function checkRadonOverdue() {
+  const now = new Date();
+  const overdue = [];
+  const viewYear = currentYear;
+  const viewMonth = currentMonth;
+  inspections.forEach(i => {
+    if (!i.address) return;
+    // Only check inspections in the currently viewed month
+    const inspDate = new Date(i.date + 'T12:00:00');
+    if (inspDate.getFullYear() !== viewYear || inspDate.getMonth() !== viewMonth) return;
+    // Has radon test: radonFee > 0, or radon field is Yes/Complete/truthy (but not No/empty)
+    const hasRadonFee = parseMoney(i.radonFee) > 0;
+    const radonField = (i.radon || '').toLowerCase();
+    const hasRadon = hasRadonFee || (radonField === 'yes') || (radonField === 'complete');
+    if (!hasRadon) return;
+    // Already complete — skip
+    if (radonField === 'complete') return;
+    // Level already entered — skip (check various empty states)
+    const level = (i.level || '').trim();
+    if (level && level !== '—' && level !== '-' && level !== '0') return;
+    // Check if 72 hours have passed since inspection
+    const hoursSince = (now - inspDate) / (1000 * 60 * 60);
+    if (hoursSince < 72) return;
+    // Calculate pickup time (48 hours after inspection)
+    const pickupDate = new Date(inspDate.getTime() + 48 * 60 * 60 * 1000);
+    const daysOverdue = Math.floor((hoursSince - 72) / 24);
+    overdue.push({ id: i.id, inspector: i.inspector, address: i.address, city: i.city, date: i.date, pickupDate, daysOverdue, hoursSince });
+  });
+
+  const alertEl = document.getElementById('radonAlert');
+  const textEl = document.getElementById('radonAlertText');
+  const tipEl = document.getElementById('radonAlertTooltip');
+
+  if (overdue.length === 0) {
+    alertEl.style.display = 'none';
+    return;
+  }
+
+  alertEl.style.display = 'block';
+  textEl.textContent = `Warning: ${overdue.length} radon test${overdue.length > 1 ? 's' : ''} past due`;
+
+  let tipHtml = '<div class="at-header red">☢️ Overdue Radon Tests</div>';
+  overdue.sort((a, b) => b.hoursSince - a.hoursSince);
+  overdue.forEach(o => {
+    const cls = o.inspector === 'Brett' ? 'brett' : 'kerry';
+    const icon = o.inspector === 'Brett' ? '🔴' : '🔵';
+    const pickupStr = o.pickupDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + o.pickupDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const daysText = o.daysOverdue === 0 ? 'Due today' : `${o.daysOverdue}d overdue`;
+    tipHtml += `<div class="at-row" onclick="scrollToInspection(${o.id})" style="cursor:pointer">
+      <span class="at-inspector ${cls}">${icon} ${o.inspector}</span>
+      <span><span class="at-addr">${o.address}</span>${o.city ? '<br><span style="color:var(--t4);font-size:11px">' + o.city + '</span>' : ''}<br><span class="at-detail orange">Pickup: ${pickupStr}</span></span>
+      <span class="at-detail red">${daysText}</span>
+    </div>`;
+  });
+  tipEl.innerHTML = tipHtml;
+}
+
+function checkUnpaidOverdue() {
+  const now = new Date();
+  const overdue = [];
+  const unpaidStatuses = ['', 'Unpaid', 'Submitted HG', 'Submitted SQ'];
+  // Only check inspections in the currently viewed month
+  const viewYear = currentYear;
+  const viewMonth = currentMonth;
+  inspections.forEach(i => {
+    if (!i.address) return;
+    if (!unpaidStatuses.includes(i.pmtStatus)) return;
+    const inspDate = new Date(i.date + 'T12:00:00');
+    if (inspDate.getFullYear() !== viewYear || inspDate.getMonth() !== viewMonth) return;
+    const hoursSince = (now - inspDate) / (1000 * 60 * 60);
+    if (hoursSince < 48) return;
+    const daysOverdue = Math.floor(hoursSince / 24);
+    overdue.push({ id: i.id, inspector: i.inspector, address: i.address, city: i.city, date: i.date, total: parseMoney(i.total), pmtStatus: i.pmtStatus || 'Unpaid', daysOverdue });
+  });
+
+  const alertEl = document.getElementById('unpaidAlert');
+  const textEl = document.getElementById('unpaidAlertText');
+  const tipEl = document.getElementById('unpaidAlertTooltip');
+
+  if (overdue.length === 0) {
+    alertEl.style.display = 'none';
+    return;
+  }
+
+  const totalAmt = overdue.reduce((s, o) => s + (o.total || 0), 0);
+  alertEl.style.display = 'block';
+  textEl.textContent = `${overdue.length} unpaid inspection${overdue.length > 1 ? 's' : ''} past 48 hours — ${fmtMoney(totalAmt)} outstanding`;
+
+  let tipHtml = '<div class="at-header orange">💰 Unpaid Inspections (48h+)</div>';
+  overdue.sort((a, b) => b.daysOverdue - a.daysOverdue);
+  overdue.forEach(o => {
+    const cls = o.inspector === 'Brett' ? 'brett' : 'kerry';
+    const icon = o.inspector === 'Brett' ? '🔴' : '🔵';
+    const dt = new Date(o.date + 'T12:00:00');
+    const dateStr = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    tipHtml += `<div class="at-row" onclick="scrollToInspection(${o.id})" style="cursor:pointer">
+      <span class="at-inspector ${cls}">${icon} ${o.inspector}</span>
+      <span><span class="at-addr">${o.address}</span>${o.city ? '<br><span style="color:var(--t4);font-size:11px">' + o.city + '</span>' : ''}<br><span class="at-detail orange">${dateStr} · ${o.pmtStatus} · ${fmtMoney(o.total)}</span></span>
+      <span class="at-detail orange">${o.daysOverdue}d</span>
+    </div>`;
+  });
+  tipEl.innerHTML = tipHtml;
+}
+
+function renderTable(){
+  document.getElementById('monthLabel').textContent=getMonthLabel();
+  // Check for overdue radon tests and unpaid inspections
+  checkRadonOverdue();
+  checkUnpaidOverdue();
+  // Rebuild city filter options
+  buildFilterDropdown('filterPaid', paidOptions, 'All Payments');
+  buildFilterDropdown('filterCity', getCityOptions(), 'All Cities');
+  buildFilterDropdown('filterInspector', inspectorOptions, 'All Inspectors');
+
+  const visible=getVisible();const withAddr=visible.filter(i=>i.address);
+  const totalRev=withAddr.reduce((s,i)=>s+(i.total||0),0);
+  const totalComm=withAddr.reduce((s,i)=>s+calcCommission(i),0);
+  const unpaidStatuses=['','Unpaid','Submitted HG','Submitted SQ','No','Awaiting Closing'];
+  const unpaid=withAddr.filter(i=>unpaidStatuses.includes(i.pmtStatus)).reduce((s,i)=>s+(i.total||0),0);
+  const count=withAddr.length;
+
+  document.getElementById('sCount').textContent=count;
+  document.getElementById('sRevenue').textContent=fmtMoney(totalRev)||'$0';
+  document.getElementById('sUnpaid').textContent=fmtMoney(unpaid)||'$0';
+  document.getElementById('sTotalComm').textContent=fmtMoney(totalComm)||'$0';
+
+  const bI=withAddr.filter(i=>i.inspector==='Brett'),kI=withAddr.filter(i=>i.inspector==='Kerry');
+  document.getElementById('brettCount').textContent=bI.length;
+  document.getElementById('brettIncome').textContent=fmtMoney(bI.reduce((s,i)=>s+(i.total||0),0))||'$0';
+  document.getElementById('brettComm').textContent=fmtMoney(bI.reduce((s,i)=>s+calcCommission(i),0))||'$0';
+  document.getElementById('brettUnpaid').textContent=fmtMoney(bI.filter(i=>i.paid==='No').reduce((s,i)=>s+calcCommission(i),0))||'$0';
+  document.getElementById('kerryCount').textContent=kI.length;
+  document.getElementById('kerryIncome').textContent=fmtMoney(kI.reduce((s,i)=>s+(i.total||0),0))||'$0';
+  document.getElementById('kerryComm').textContent=fmtMoney(kI.reduce((s,i)=>s+calcCommission(i),0))||'$0';
+  document.getElementById('kerryUnpaid').textContent=fmtMoney(kI.filter(i=>i.paid==='No').reduce((s,i)=>s+calcCommission(i),0))||'$0';
+
+  const list=document.getElementById('inspList');
+  if(visible.length===0){list.innerHTML=`<div class="empty-state"><div class="empty-state-icon">📋</div><h3>No inspections for ${getMonthLabel()}</h3><p>${isSignedIn?'Click Sync to pull from calendar':'Connect your Google Calendar to get started'}</p></div>`;return;}
+
+  let html='';
+  visible.forEach((i,idx)=>{
+    const dt=new Date(i.date+'T12:00:00');
+    const day=dt.getDate();const mon=dt.toLocaleDateString('en-US',{month:'short'});
+    const wkday=dt.toLocaleDateString('en-US',{weekday:'short'});
+    const inspTag=i.inspector==='Kerry'?'<span class="tag tag-kerry">Kerry</span>':'<span class="tag tag-brett">Brett</span>';
+    const pmtTag=i.paid==='Yes'?`<span class="tag ${pmtTagClass(i.pmtStatus)}">${i.pmtStatus||'Paid'}</span>`:'<span class="tag tag-unpaid">Unpaid</span>';
+
+    const unpaidStatuses=['Unpaid','Submitted HG','Submitted SQ','Awaiting Closing','No'];
+    const isUnpaid=unpaidStatuses.includes(i.pmtStatus);
+
+    html+=`<div class="anim" style="animation-delay:${idx*30}ms">
+      <div class="insp-wrap" id="insp-${i.id}" onclick="toggleDetail(event, this)">
+      <div class="insp-card${isUnpaid?' unpaid-highlight':''}">
+        <div class="date-block"><div class="date-mon">${mon}</div><div class="date-day">${day}</div><div class="date-weekday">${wkday}</div></div>
+        <div><div class="ed insp-addr" onclick="startEdit(this,${i.id},'address')">${i.address||'<span class="ph">Enter address</span>'}</div><div class="ed insp-city" onclick="startEdit(this,${i.id},'city')">${i.city||'<span class="ph">City</span>'}</div></div>
+        <div><div class="ed insp-client" onclick="startEdit(this,${i.id},'client')">${i.client||'<span class="ph">Client</span>'}</div><div class="ed insp-agent" onclick="startEdit(this,${i.id},'agent')">${i.agent?'Agent: '+i.agent:'<span class="ph">Agent</span>'}</div></div>
+        <div><div class="insp-fee">${i.total?(i.taxable==='No'?fmtMoney(preTax(i.total)):fmtMoney(i.total)):'$0'}</div><div class="insp-fee-label">${i.taxable==='No'?'Total (pre-tax)':'Total'}</div></div>
+        <div><div class="insp-comm">${fmtMoney(calcCommission(i))||'$0'}</div><div class="insp-fee-label">Commission</div></div>
+        ${makeCardSel(i.id,'inspector',i.inspector,[{value:'Brett',label:'🔴 Brett'},{value:'Kerry',label:'🔵 Kerry'}],'Inspector')}
+        ${makeCardSel(i.id,'taxable',i.taxable,[{value:'',label:'—'},{value:'Yes',label:'Taxable'},{value:'No',label:'No'}],'Tax Status')}
+        ${makeCardSel(i.id,'pmtStatus',i.pmtStatus,[{value:'Unpaid',label:'Unpaid'},{value:'Submitted HG',label:'Submitted HG'},{value:'Submitted SQ',label:'Submitted SQ'},{value:'Awaiting Closing',label:'Awaiting Closing'},{value:'No',label:'No'},{value:'Paid HG',label:'Paid HG'},{value:'Paid SQ',label:'Paid SQ'},{value:'Venmo',label:'Venmo'},{value:'Zelle',label:'Zelle'},{value:'Cash',label:'Cash'},{value:'Check',label:'Check'}],'Payment Status')}
+        ${makeCardSel(i.id,'paid',i.paid,[{value:'',label:'—'},{value:'No',label:'Unpaid'},{value:'Yes',label:'Paid'}],'Commission')}
+        <div><button class="del-btn" onclick="deleteRow(${i.id})">×</button></div>
+      </div>
+      <div class="detail-row" id="detail-${i.id}">
+        <div class="detail-field"><label>Insp Fee${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'inspFee')">${i.inspFee?(i.taxable==='No'?'$'+Math.round(preTax(parseMoney(i.inspFee))):i.inspFee):'<span class=\"ph\">—</span>'}</div></div>
+        ${parseMoney(i.radonFee)>0?`<div class="detail-field"><label>Radon Fee${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'radonFee')">${i.taxable==='No'?'$'+Math.round(preTax(parseMoney(i.radonFee))):i.radonFee} <span class="svc-remove" onclick="removeService(${i.id},'radonFee',event);event.stopPropagation();" title="Remove radon test">×</span></div></div>`:''}
+        ${parseMoney(i.waterFee)>0?`<div class="detail-field"><label>Water Fee${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'waterFee')">${i.taxable==='No'?'$'+Math.round(preTax(parseMoney(i.waterFee))):i.waterFee} <span class="svc-remove" onclick="removeService(${i.id},'waterFee',event);event.stopPropagation();" title="Remove water test">×</span></div></div>`:''}
+        ${parseMoney(i.mileage)>0?`<div class="detail-field"><label>Mileage${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'mileage')">${i.taxable==='No'?'$'+Math.round(preTax(parseMoney(i.mileage))):i.mileage} <span class="svc-remove" onclick="removeService(${i.id},'mileage',event);event.stopPropagation();" title="Remove mileage">×</span></div></div>`:''}
+        ${parseMoney(i.discount)!==0?`<div class="detail-field"><label>Discount${i.taxable==='No'?' (pre-tax)':''}</label><div class="ed" onclick="startEdit(this,${i.id},'discount')">${i.taxable==='No'?'-$'+Math.round(Math.abs(preTax(parseMoney(i.discount)))):i.discount}${i.discountReason?' ('+i.discountReason+')':''} <span class="svc-remove" onclick="removeService(${i.id},'discount',event);event.stopPropagation();" title="Remove discount">×</span></div></div>`:''}
+        <div class="detail-field"><div class="svc-anchor"><button class="add-svc-btn" onclick="toggleSvcMenu(${i.id},this,event)">+ Add Service</button></div></div>
+        <div class="detail-field"><label>Year</label><div class="ed" onclick="startEdit(this,${i.id},'yearBuilt')">${i.yearBuilt||'<span class="ph">—</span>'}</div></div>
+        <div class="detail-field"><label>SQFT</label><div class="ed" onclick="startEdit(this,${i.id},'sqft')">${i.sqft||'<span class="ph">—</span>'}</div></div>
+        ${parseMoney(i.radonFee)>0?`<div class="detail-field"><label>Radon</label>${makeSel(i.id,'radon',i.radon,[{value:'',label:'—'},{value:'No',label:'No'},{value:'Yes',label:'Yes'},{value:'Complete',label:'Complete'}])}</div>
+        <div class="detail-field"><label>Level</label><div class="ed" onclick="startEdit(this,${i.id},'level')">${i.level||'<span class="ph">—</span>'}</div></div>`:''}
+        ${i.pmtStatus==='Awaiting Closing'?`<div class="detail-field"><label>Closing Date</label><div class="ed" onclick="startEdit(this,${i.id},'closingDate')">${i.closingDate||'<span class="ph">Enter date</span>'}</div></div>`:''}
+        <div class="detail-field detail-notes"><label>Notes</label><textarea placeholder="Add inspection notes..." onblur="updateNotes(${i.id},this.value)">${i.notes||''}</textarea></div>
+      </div>
+      </div>
+    </div>`;
+  });
+  list.innerHTML=html;
+  // Re-apply expand/collapse all state
+  if (document.getElementById('expandAllCb')?.checked) {
+    document.querySelectorAll('.detail-row').forEach(d => d.classList.add('expanded'));
+  }
+  if (collapseAllMode) {
+    document.querySelectorAll('.insp-wrap').forEach(w => w.classList.add('no-hover'));
+  }
+}
+
+// ─── TAB SWITCHING ───
+let currentTab = 'inspections';
+let metricsYear = new Date().getFullYear();
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('inspectionsPage').style.display = tab === 'inspections' ? 'flex' : 'none';
+  document.getElementById('metricsPage').style.display = tab === 'metrics' ? 'flex' : 'none';
+  document.querySelectorAll('.side-nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById(tab === 'inspections' ? 'navInspections' : 'navMetrics').classList.add('active');
+  if (tab === 'metrics') renderMetrics();
+}
+
+function changeMetricsYear(d) { metricsYear += d; renderMetrics(); }
+
+function toggleSalesTaxPaid(key) {
+  salesTaxPaid[key] = !salesTaxPaid[key];
+  renderMetrics();scheduleSave();
+}
+function toggleMidcontPaid(key) {
+  midcontPaid[key] = !midcontPaid[key];
+  renderMetrics();scheduleSave();
+}
+
+function fmtM2(v) { return '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtMC(v, cls) { if(!v || v===0) return `<span class="m-zero">—</span>`; return `<span class="${cls||''}">${fmtM2(v)}</span>`; }
+function fmtNC(v) { if(!v || v===0) return `<span class="m-zero">—</span>`; return v; }
+
+function renderMetrics() {
+  document.getElementById('metricsYearLabel').textContent = metricsYear;
+  const yr = metricsYear;
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const shortYr = String(yr).slice(2);
+
+  // Get all inspections for this year
+  const yearInsps = inspections.filter(i => {
+    const d = new Date(i.date + 'T12:00:00');
+    return d.getFullYear() === yr && i.address;
+  });
+
+  // Build monthly data
+  const monthData = [];
+  for (let m = 0; m < 12; m++) {
+    const mi = yearInsps.filter(i => new Date(i.date + 'T12:00:00').getMonth() === m);
+    const taxable = mi.filter(i => i.taxable === 'Yes');
+    const nontax = mi.filter(i => i.taxable === 'No');
+    // Taxable = full amount collected (includes tax)
+    const taxTotal = taxable.reduce((s, i) => s + (i.total || 0), 0);
+    // Non-taxable = cash, pre-tax since tax was never collected
+    const nontaxTotal = nontax.reduce((s, i) => s + Math.round(preTax(i.total || 0)), 0);
+    // Total = all inspections regardless of tax status
+    const monthTotal = mi.reduce((s, i) => s + (i.total || 0), 0);
+    // Sales tax collected from taxable inspections only
+    const salesTax = taxable.reduce((s, i) => s + ((i.total || 0) * (6.2 / 106.2)), 0);
+
+    // Per inspector
+    const inspData = {};
+    ['Brett', 'Kerry'].forEach(name => {
+      const pi = mi.filter(i => i.inspector === name);
+      const piTax = pi.filter(i => i.taxable === 'Yes');
+      const piNon = pi.filter(i => i.taxable === 'No');
+      const piTaxIncome = piTax.reduce((s, i) => s + (i.total || 0), 0);
+      const piCashIncome = piNon.reduce((s, i) => s + Math.round(preTax(i.total || 0)), 0);
+      // Total = all inspections (full amount)
+      const piTotal = pi.reduce((s, i) => s + (i.total || 0), 0);
+      const piRadon = pi.reduce((s, i) => s + parseMoney(i.radonFee), 0);
+      const piWater = pi.reduce((s, i) => s + parseMoney(i.waterFee), 0);
+      const piMileage = pi.reduce((s, i) => s + parseMoney(i.mileage), 0);
+      const piDiscount = pi.reduce((s, i) => s + parseMoney(i.discount), 0);
+      const piCommEarned = pi.reduce((s, i) => s + calcCommission(i), 0);
+      const piCommNP = pi.filter(i => i.paid === 'No').reduce((s, i) => s + calcCommission(i), 0);
+      inspData[name] = { count: pi.length, taxable: piTaxIncome, cash: piCashIncome, total: piTotal, radon: piRadon, water: piWater, mileage: piMileage, discount: piDiscount, commEarned: piCommEarned, commNP: piCommNP };
+    });
+
+    // Water tests: revenue collected, $50 commission to inspector, net due to Midcontinent
+    const waterInsps = mi.filter(i => parseMoney(i.waterFee) > 0);
+    const waterTests = waterInsps.length;
+    const waterRevenue = waterInsps.reduce((s, i) => s + parseMoney(i.waterFee), 0);
+    const waterCommPaid = waterTests * 50;
+    const waterDueMidcont = waterRevenue - waterCommPaid;
+
+    monthData.push({ label: months[m] + ' ' + shortYr, count: mi.length, taxable: taxTotal, nontax: nontaxTotal, total: monthTotal, salesTax, waterTests, waterRevenue, waterCommPaid, waterDueMidcont, inspData });
+  }
+
+  // Build quarter sums
+  function sumRange(start, end) {
+    const slice = monthData.slice(start, end);
+    const r = { count: 0, taxable: 0, nontax: 0, total: 0, salesTax: 0, waterTests: 0, waterRevenue: 0, waterCommPaid: 0, waterDueMidcont: 0, inspData: {} };
+    ['Brett', 'Kerry'].forEach(n => { r.inspData[n] = { count: 0, taxable: 0, cash: 0, total: 0, radon: 0, water: 0, mileage: 0, discount: 0, commEarned: 0, commNP: 0 }; });
+    slice.forEach(m => {
+      r.count += m.count; r.taxable += m.taxable; r.nontax += m.nontax; r.total += m.total; r.salesTax += m.salesTax; r.waterTests += m.waterTests; r.waterRevenue += m.waterRevenue; r.waterCommPaid += m.waterCommPaid; r.waterDueMidcont += m.waterDueMidcont;
+      ['Brett', 'Kerry'].forEach(n => { const d = m.inspData[n]; const rd = r.inspData[n]; Object.keys(rd).forEach(k => rd[k] += d[k]); });
+    });
+    return r;
+  }
+
+  const q = [sumRange(0,3), sumRange(3,6), sumRange(6,9), sumRange(9,12)];
+  const yearTotal = sumRange(0, 12);
+
+  // ─── COMPANY OVERVIEW ───
+  let compHtml = `<div class="m-summary">
+    <div class="m-summary-card"><div class="m-summary-label">Total Inspections</div><div class="m-summary-val" style="color:var(--accent)">${yearTotal.count}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Taxable Revenue</div><div class="m-summary-val" style="color:var(--green)">${fmtM2(yearTotal.taxable)}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Non-Taxable</div><div class="m-summary-val" style="color:var(--t1)">${fmtM2(yearTotal.nontax)}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Total Revenue</div><div class="m-summary-val" style="color:var(--green)">${fmtM2(yearTotal.total)}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Water Tests</div><div class="m-summary-val" style="color:var(--accent)">${yearTotal.waterTests}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Due Midcontinent</div><div class="m-summary-val" style="color:var(--orange)">${fmtM2(yearTotal.waterDueMidcont)}</div></div>
+    <div class="m-summary-card"><div class="m-summary-label">Sales Tax</div><div class="m-summary-val" style="color:var(--orange)">${fmtM2(yearTotal.salesTax)}</div></div>
+  </div>`;
+
+  compHtml += `<table class="m-tbl"><thead><tr><th>Month</th><th>Inspections</th><th>Monthly Totals</th><th>Taxable</th><th>Non-Taxable</th><th>Water Tests</th><th>Due Midcont.</th><th>Midcont. Paid</th><th>Sales Tax</th><th>Sales Tax Paid</th></tr></thead><tbody>`;
+
+  for (let qi = 0; qi < 4; qi++) {
+    const start = qi * 3;
+    for (let mi = start; mi < start + 3; mi++) {
+      const d = monthData[mi];
+      const hasData = d.count > 0;
+      const mkey = yr + '-' + String(mi+1).padStart(2,'0');
+      const mpaid = midcontPaid[mkey];
+      const midcClass = mpaid ? 'm-money-green' : 'm-money-orange';
+      compHtml += `<tr class="${hasData?'has-data':'no-data'}"><td>${d.label}</td><td>${fmtNC(d.count)}</td><td>${fmtMC(d.total,'m-money-green')}</td><td>${fmtMC(d.taxable,'m-money-green')}</td><td>${fmtMC(d.nontax)}</td><td>${fmtNC(d.waterTests)}</td><td>${fmtMC(d.waterDueMidcont,midcClass)}</td><td>${hasData&&d.waterTests?`<button class="m-check ${mpaid?'m-check-yes':'m-check-no'}" onclick="toggleMidcontPaid('${mkey}')">${mpaid?'✓ Paid':'Not Paid'}</button>`:''}</td><td>${fmtMC(d.salesTax,'m-money-orange')}</td><td></td></tr>`;
+    }
+    const qkey = yr + '-Q' + (qi + 1);
+    const qpaid = salesTaxPaid[qkey];
+    const stClass = qpaid ? 'm-money-green' : 'm-money-orange';
+    compHtml += `<tr class="q-row"><td>Q${qi + 1}</td><td>${fmtNC(q[qi].count)}</td><td>${fmtMC(q[qi].total,'m-money-green')}</td><td>${fmtMC(q[qi].taxable,'m-money-green')}</td><td>${fmtMC(q[qi].nontax)}</td><td>${fmtNC(q[qi].waterTests)}</td><td>${fmtMC(q[qi].waterDueMidcont,'m-money-orange')}</td><td></td><td>${fmtMC(q[qi].salesTax,stClass)}</td><td><button class="m-check ${qpaid ? 'm-check-yes' : 'm-check-no'}" onclick="toggleSalesTaxPaid('${qkey}')">${qpaid ? '✓ Paid' : 'Not Paid'}</button></td></tr>`;
+    if (qi < 3) compHtml += `<tr class="gap-row"><td colspan="10"></td></tr>`;
+  }
+  compHtml += `<tr class="gap-row"><td colspan="10"></td></tr>`;
+  compHtml += `<tr class="yr-row"><td>${yr} Total</td><td>${yearTotal.count}</td><td class="m-money-green">${fmtM2(yearTotal.total)}</td><td class="m-money-green">${fmtM2(yearTotal.taxable)}</td><td>${fmtM2(yearTotal.nontax)}</td><td>${yearTotal.waterTests}</td><td class="m-money-orange">${fmtM2(yearTotal.waterDueMidcont)}</td><td></td><td class="m-money-orange">${fmtM2(yearTotal.salesTax)}</td><td></td></tr>`;
+  compHtml += `</tbody></table>`;
+
+  // ─── INSPECTOR TABLE ───
+  function inspTable(name, color) {
+    const yd = yearTotal.inspData[name];
+    // Summary cards for this inspector
+    let h = `<div class="m-summary">
+      <div class="m-summary-card"><div class="m-summary-label">Inspections</div><div class="m-summary-val" style="color:${color}">${yd.count}</div></div>
+      <div class="m-summary-card"><div class="m-summary-label">Total Revenue</div><div class="m-summary-val" style="color:var(--green)">${fmtM2(yd.total)}</div></div>
+      <div class="m-summary-card"><div class="m-summary-label">Commission Earned</div><div class="m-summary-val" style="color:var(--purple)">${fmtM2(yd.commEarned)}</div></div>
+      <div class="m-summary-card"><div class="m-summary-label">Commission Unpaid</div><div class="m-summary-val" style="color:var(--orange)">${fmtM2(yd.commNP)}</div></div>
+    </div>`;
+
+    h += `<table class="m-tbl"><thead><tr><th>Month</th><th>Inspections</th><th>Total</th><th>Taxable</th><th>Cash</th><th>Radon</th><th>Water</th><th>Mileage</th><th>Discount</th><th>Comm. Earned</th><th>Comm. NP</th></tr></thead><tbody>`;
+    for (let qi = 0; qi < 4; qi++) {
+      const start = qi * 3;
+      for (let mi = start; mi < start + 3; mi++) {
+        const d = monthData[mi].inspData[name];
+        const hasData = d.count > 0;
+        h += `<tr class="${hasData?'has-data':'no-data'}"><td>${monthData[mi].label}</td><td>${fmtNC(d.count)}</td><td>${fmtMC(d.total,'m-money-green')}</td><td>${fmtMC(d.taxable,'m-money-green')}</td><td>${fmtMC(d.cash)}</td><td>${fmtMC(d.radon)}</td><td>${fmtMC(d.water)}</td><td>${fmtMC(d.mileage)}</td><td>${fmtMC(d.discount,'m-money-red')}</td><td>${fmtMC(d.commEarned,'m-money-purple')}</td><td>${fmtMC(d.commNP,'m-money-orange')}</td></tr>`;
+      }
+      const qd = q[qi].inspData[name];
+      h += `<tr class="q-row"><td>Q${qi + 1}</td><td>${fmtNC(qd.count)}</td><td>${fmtMC(qd.total,'m-money-green')}</td><td>${fmtMC(qd.taxable,'m-money-green')}</td><td>${fmtMC(qd.cash)}</td><td>${fmtMC(qd.radon)}</td><td>${fmtMC(qd.water)}</td><td>${fmtMC(qd.mileage)}</td><td>${fmtMC(qd.discount,'m-money-red')}</td><td>${fmtMC(qd.commEarned,'m-money-purple')}</td><td>${fmtMC(qd.commNP,'m-money-orange')}</td></tr>`;
+      if (qi < 3) h += `<tr class="gap-row"><td colspan="11"></td></tr>`;
+    }
+    h += `<tr class="gap-row"><td colspan="11"></td></tr>`;
+    h += `<tr class="yr-row"><td>Total</td><td>${yd.count}</td><td class="m-money-green">${fmtM2(yd.total)}</td><td class="m-money-green">${fmtM2(yd.taxable)}</td><td>${fmtM2(yd.cash)}</td><td>${fmtM2(yd.radon)}</td><td>${fmtM2(yd.water)}</td><td>${fmtM2(yd.mileage)}</td><td class="m-money-red">${fmtM2(yd.discount)}</td><td class="m-money-purple">${fmtM2(yd.commEarned)}</td><td class="m-money-orange">${fmtM2(yd.commNP)}</td></tr>`;
+    h += `</tbody></table>`;
+    return h;
+  }
+
+  // Assemble
+  let html = `
+    <div class="m-section">
+      <div class="m-section-header"><div class="m-section-dot" style="background:var(--accent)"></div><h3>Company Overview — ${yr}</h3></div>
+      ${compHtml}
+    </div>
+    <div class="m-section">
+      <div class="m-section-header"><div class="m-section-dot" style="background:#EF4444"></div><h3>Brett — ${yr}</h3></div>
+      ${inspTable('Brett', '#EF4444')}
+    </div>
+    <div class="m-section">
+      <div class="m-section-header"><div class="m-section-dot" style="background:#3B82F6"></div><h3>Kerry — ${yr}</h3></div>
+      ${inspTable('Kerry', '#3B82F6')}
+    </div>`;
+
+  document.getElementById('metricsContent').innerHTML = html;
+}
+
+// Load saved data from localStorage first, then try Google API
+loadLocal();
+initGoogleAPI();
+renderTable();
+
+// ─── MOBILE SIDEBAR ───
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sideOverlay').classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sideOverlay').classList.remove('open');
+}
+// Close sidebar when nav link clicked on mobile
+document.querySelectorAll('.side-nav a').forEach(a => {
+  a.addEventListener('click', () => { if (window.innerWidth <= 768) closeSidebar(); });
+});
+</script>
+
+<!-- ADD INSPECTION MODAL -->
+<div id="addInspModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeAddModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2>?? Add Inspection</h2>
+      <button class="modal-close" onclick="closeAddModal()">�</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-row two">
+        <div class="modal-field"><label>Date</label><input type="date" id="mi_date"></div>
+        <div class="modal-field"><label>Inspector</label>
+          <select id="mi_inspector">
+            <option value="Brett">?? Brett</option>
+            <option value="Kerry">?? Kerry</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Address</label><input type="text" id="mi_address" placeholder="123 Main St"></div>
+      </div>
+      <div class="modal-row two">
+        <div class="modal-field"><label>City</label><input type="text" id="mi_city" placeholder="Rapid City"></div>
+        <div class="modal-field"><label>Client Name</label><input type="text" id="mi_client" placeholder="John Smith"></div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Buyer's Agent</label><input type="text" id="mi_agent" placeholder="Agent name (optional)"></div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:4px 0 16px;">
+      <div class="modal-row two">
+        <div class="modal-field"><label>Taxable</label>
+          <select id="mi_taxable" onchange="updateModalCommPreview()">
+            <option value="">� Select �</option>
+            <option value="Yes">Yes (HomeGauge / card)</option>
+            <option value="No">No (Cash)</option>
+          </select>
+        </div>
+        <div class="modal-field"><label>Payment Status</label>
+          <select id="mi_pmtStatus">
+            <option value="Unpaid">Unpaid</option>
+            <option value="Submitted HG">Submitted HG</option>
+            <option value="Submitted SQ">Submitted SQ</option>
+            <option value="Paid HG">Paid HG</option>
+            <option value="Paid SQ">Paid SQ</option>
+            <option value="Venmo">Venmo</option>
+            <option value="Zelle">Zelle</option>
+            <option value="Cash">Cash</option>
+            <option value="Check">Check</option>
+            <option value="Awaiting Closing">Awaiting Closing</option>
+            <option value="No">No</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-row three">
+        <div class="modal-field">
+          <label>Insp Fee <span id="mi_fee_hint" style="color:var(--t4);font-weight:400;text-transform:none"></span></label>
+          <input type="number" id="mi_inspFee" placeholder="450" step="0.01" oninput="updateModalCommPreview()">
+          <div class="fee-hint" id="mi_fee_subhint"></div>
+        </div>
+        <div class="modal-field"><label>Radon Fee</label><input type="number" id="mi_radonFee" placeholder="0" step="0.01" oninput="updateModalCommPreview()"></div>
+        <div class="modal-field"><label>Water Fee</label><input type="number" id="mi_waterFee" placeholder="0" step="0.01" oninput="updateModalCommPreview()"></div>
+      </div>
+      <div class="modal-row two">
+        <div class="modal-field"><label>Mileage</label><input type="number" id="mi_mileage" placeholder="0" step="0.01" oninput="updateModalCommPreview()"></div>
+        <div class="modal-field"><label>Discount</label><input type="number" id="mi_discount" placeholder="0" step="0.01" oninput="updateModalCommPreview()"></div>
+      </div>
+      <div class="modal-comm-preview">
+        <div>
+          <div class="mcp-label">Estimated Commission</div>
+          <div style="font-size:11px;color:var(--t4);margin-top:2px" id="mi_comm_note">Tax is never applied to commission</div>
+        </div>
+        <div class="mcp-val" id="mi_comm_preview">�</div>
+      </div>
+      <div class="modal-row">
+        <div class="modal-field"><label>Notes</label><textarea id="mi_notes" rows="2" placeholder="Optional notes..."></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="submitAddModal()">Add Inspection</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
