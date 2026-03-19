@@ -730,9 +730,8 @@ function handleLoginGate(){
         if (ALLOWED_EMAILS.includes(email)) {
           loginGatePassed = true;
           document.getElementById('loginGate').style.display = 'none';
-          // Revoke temporary token then auto-trigger full sign-in (calendar/sheets/gmail)
+          // Login gate passed — click Connect Calendar in sidebar to sync data
           google.accounts.oauth2.revoke(resp.access_token);
-          handleSignIn('');
         } else {
           document.getElementById('loginError').textContent = 'Access denied. This account (' + email + ') is not authorized.';
           document.getElementById('loginError').style.display = 'block';
