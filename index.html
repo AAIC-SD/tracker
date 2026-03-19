@@ -1437,7 +1437,35 @@ function submitAddModal(){
   const waterFeeRaw = parseFloat(document.getElementById('mi_waterFee').value) || 0;
   const mileageRaw = parseFloat(document.getElementById('mi_mileage').value) || 0;
   const discountRaw = parseFloat(document.getElementById('mi_discount').value) || 0;
-  const fmt = (v) => v > 0 ? ('-${String(currentMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;inspections.push({id:nextId++,googleId:null,date:ds,address:'',city:'',radon:'',level:'',discount:'',discountReason:'',inspFee:'',radonFee:'',waterFee:'',mileage:'',total:0,taxable:'',inspector:'Brett',commission:0,paid:'',agent:'',client:'',pmtStatus:'Unpaid',yearBuilt:'',sqft:'',closingDate:'',notes:''});renderTable();scheduleSave();}
+  const newInsp = {
+    id: nextId++,
+    googleId: null,
+    date,
+    address,
+    city: document.getElementById('mi_city').value.trim(),
+    client: document.getElementById('mi_client').value.trim(),
+    agent: document.getElementById('mi_agent').value.trim(),
+    taxable,
+    pmtStatus: document.getElementById('mi_pmtStatus').value,
+    inspector: document.getElementById('mi_inspector').value,
+    inspFee: inspFeeRaw ? String(inspFeeRaw) : '',
+    radonFee: radonFeeRaw ? String(radonFeeRaw) : '',
+    waterFee: waterFeeRaw ? String(waterFeeRaw) : '',
+    mileage: mileageRaw ? String(mileageRaw) : '',
+    discount: discountRaw ? String(discountRaw) : '',
+    notes: document.getElementById('mi_notes').value.trim(),
+    radon: '', level: '', discountReason: '', paid: '',
+    yearBuilt: '', sqft: '', closingDate: '',
+    total: 0, commission: 0
+  };
+  newInsp.total = parseMoney(newInsp.inspFee) + parseMoney(newInsp.radonFee) + parseMoney(newInsp.waterFee) + parseMoney(newInsp.mileage) - parseMoney(newInsp.discount);
+  newInsp.commission = calcCommission(newInsp);
+  if (newInsp.pmtStatus === 'Cash') newInsp.paid = 'Yes';
+  inspections.push(newInsp);
+  closeAddModal();
+  renderTable();
+  scheduleSave();
+}
 
 function updateField(id,field,value){const i=inspections.find(x=>x.id===id);if(!i)return;i[field]=value;if(['inspFee','radonFee','waterFee','mileage','discount'].includes(field)){i.total=parseMoney(i.inspFee)+parseMoney(i.discount)+parseMoney(i.radonFee)+parseMoney(i.waterFee)+parseMoney(i.mileage);i.commission=calcCommission(i);}if(field==='pmtStatus'&&value==='Cash'){i.paid='Yes';}renderTable();scheduleSave();}
 
