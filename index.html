@@ -1251,7 +1251,7 @@ function parseCalendarEvent(ev){
   const bm=desc.match(/Buyer'?s?\s*Agent\s*[-â€“]?\s*([^\n(]+)/i);if(bm)buyerAgent=bm[1].trim();
 
   const total=totalFromDesc||( parseMoney(inspFee)+parseMoney(discount)+parseMoney(radonFee)+parseMoney(waterFee)+parseMoney(mileage) );
-  return{googleId:ev.id,date:ev.start.dateTime.split('T')[0],address:address||location.split(',')[0]||'',city,radon:radonFee?'Yes':'No',level:'',discount,discountReason,inspFee,radonFee,waterFee,mileage,total,taxable:'',inspector,commission:total,paid:'',agent:buyerAgent,client,pmtStatus:'Unpaid',yearBuilt:ybVal,sqft:sqft,closingDate:'',notes:''};
+  const calEv={googleId:ev.id,date:ev.start.dateTime.split('T')[0],address:address||location.split(',')[0]||'',city,radon:radonFee?'Yes':'No',level:'',discount,discountReason,inspFee,radonFee,waterFee,mileage,total,taxable:'',inspector,commission:0,paid:'',agent:buyerAgent,client,pmtStatus:'Unpaid',yearBuilt:ybVal,sqft:sqft,closingDate:'',notes:''};calEv.commission=calcCommission(calEv);return calEv;
 }
 
 function parseMoney(v){if(!v)return 0;return parseFloat(String(v).replace(/[^0-9.-]/g,''))||0;}
@@ -2276,3 +2276,4 @@ document.querySelectorAll('.side-nav a').forEach(a => {
 </div>
 </body>
 </html>
+
