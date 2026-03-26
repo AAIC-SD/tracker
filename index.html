@@ -730,8 +730,9 @@ function handleLoginGate(){
         if (ALLOWED_EMAILS.includes(email)) {
           loginGatePassed = true;
           document.getElementById('loginGate').style.display = 'none';
-          // Login gate passed — click Connect Calendar in sidebar to sync data
+          // Auto-trigger full sign-in after gate passes
           google.accounts.oauth2.revoke(resp.access_token);
+          handleSignIn('none');
         } else {
           document.getElementById('loginError').textContent = 'Access denied. This account (' + email + ') is not authorized.';
           document.getElementById('loginError').style.display = 'block';
@@ -2276,4 +2277,6 @@ document.querySelectorAll('.side-nav a').forEach(a => {
 </div>
 </body>
 </html>
+
+
 
